@@ -44,8 +44,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize logger
-	log := logger.New(cfg.Logging.Level, cfg.Logging.Format, cfg.Logging.Output)
+	// Initialize logger with enhanced dual-output support
+	log := logger.NewWithConfig(&cfg.Logging)
 	log.Info("Starting OAuth2 Authentication Service")
 	log.WithFields(logrus.Fields{
 		"version": "1.0.0",

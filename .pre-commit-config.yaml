@@ -1,0 +1,121 @@
+---
+repos:
+  # Go specific hooks
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        name: Format Go code
+        description: Run gofmt on Go files
+      - id: go-imports
+        name: Organize Go imports
+        description: Run goimports on Go files
+      - id: go-mod-tidy
+        name: Tidy Go modules
+        description: Clean up Go module dependencies
+      - id: go-cyclo
+        name: Check Go code complexity
+        description: Check Go code for cyclomatic complexity
+        args: [-over=20]
+      - id: golangci-lint
+        name: Lint Go code
+        description: Check Go code for style issues
+        args: [--fix]
+      - id: go-build
+        name: Build Go code
+        description: Compile Go code
+      - id: go-unit-tests
+        name: Run Go unit tests
+        description: Run unit tests with race detection
+        args: [-race, -short, -q]
+
+  # Security scanning
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.2
+    hooks:
+      - id: go-sec-mod
+        name: Security scan with gosec
+        description: Run gosec security scanner
+        args: [-fmt=json, -out=gosec-report.json, -stdout, -verbose=text, ./...]
+
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of file
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1024']
+      - id: detect-private-key
+        name: Detect private keys
+
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+              \.secrets\.baseline|
+              go\.sum|
+              .*\.lock
+          )$
+
+  # Commit message format
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Conventional commit format
+        stages: [commit-msg]
+
+  # Docker linting (if Dockerfile exists)
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        name: Lint Dockerfile
+        files: Dockerfile
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        name: Lint YAML files
+        args: [-c=.yamllint.yml]
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        name: Lint Markdown files
+        args: [--fix, --config, .markdownlint.json]
+
+  - repo: local
+    hooks:
+      - id: kube-score
+        name: kube-score
+        entry: >-
+          sh -c 'find k8s -name "*.yaml" -type f -not -path "*/templates/*" |
+          xargs kube-score score'
+        language: system
+        files: k8s/.*\.yaml$
+        pass_filenames: false
+        args: []
+
+# Global settings
+fail_fast: false
+default_install_hook_types: [pre-commit, commit-msg]

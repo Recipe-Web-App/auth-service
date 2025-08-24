@@ -45,11 +45,15 @@
   "workbench.colorTheme": "Default Dark+",
   "workbench.editor.enablePreview": false,
   "cSpell.words": [
+    "configmap",
     "envconfig",
+    "envsubst",
     "gofmt",
     "goimports",
     "golangci",
+    "GOMAXPROCS",
     "gosec",
+    "horizontalpodautoscaler",
     "HSTS",
     "HTMLUTF",
     "jsamuelsen",
@@ -57,11 +61,14 @@
     "logrus",
     "nosniff",
     "PKCE",
+    "poddisruptionbudget",
     "promhttp",
+    "servicemonitor",
     "sirupsen",
     "stretchr",
     "testcontainers",
     "unpadded",
-    "uppercasing"
+    "uppercasing",
+    "userinfo"
   ]
 }

@@ -42,11 +42,11 @@ func NewOAuth2Handler(authSvc auth.Service, cfg *config.Config, logger *logrus.L
 // RegisterRoutes registers all OAuth2 endpoints with the provided router.
 func (h *OAuth2Handler) RegisterRoutes(r *mux.Router) {
 	// OAuth2 endpoints
-	r.HandleFunc("/oauth/authorize", h.Authorize).Methods("GET", "POST")
-	r.HandleFunc("/oauth/token", h.Token).Methods("POST")
-	r.HandleFunc("/oauth/revoke", h.RevokeToken).Methods("POST")
-	r.HandleFunc("/oauth/introspect", h.IntrospectToken).Methods("POST")
-	r.HandleFunc("/oauth/userinfo", h.UserInfo).Methods("GET", "POST")
+	r.HandleFunc("/oauth2/authorize", h.Authorize).Methods("GET", "POST")
+	r.HandleFunc("/oauth2/token", h.Token).Methods("POST")
+	r.HandleFunc("/oauth2/revoke", h.RevokeToken).Methods("POST")
+	r.HandleFunc("/oauth2/introspect", h.IntrospectToken).Methods("POST")
+	r.HandleFunc("/oauth2/userinfo", h.UserInfo).Methods("GET", "POST")
 
 	// Discovery endpoint
 	r.HandleFunc("/.well-known/oauth-authorization-server", h.WellKnownOAuthServer).Methods("GET")

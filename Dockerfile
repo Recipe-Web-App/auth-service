@@ -1,58 +1,66 @@
-# Multi-stage Docker build for OAuth2 Authentication Service
-#
-# Stage 1: Build stage
-FROM golang:1.25-alpine AS builder
+# Multi-stage build for Go auth-service production optimization
+FROM golang:1.23-alpine AS base
 
-# Add stage label for build output
-LABEL stage=builder
+# Install build dependencies with pinned versions
+RUN apk add --no-cache \
+    git=2.43.0-r0 \
+    ca-certificates=20240705-r0 \
+    tzdata=2024a-r0
 
-# Install build dependencies
-RUN apk add --no-cache git=2.45.2-r0 ca-certificates=20240705-r0 tzdata=2024a-r1
-
-# Set working directory
-WORKDIR /build
+WORKDIR /app
 
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download and verify dependencies
+# Download dependencies
+FROM base AS deps
 RUN go mod download && go mod verify
 
-# Copy source code
+# Build stage
+FROM base AS build
+COPY --from=deps /go/pkg /go/pkg
 COPY . .
 
-# Build the application
+# Build the binary with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
     -o auth-service \
     ./cmd/server
 
-# Stage 2: Final stage
-FROM scratch AS production
+# Production stage
+FROM alpine:3.19 AS production
 
-# Add stage label for build output
-LABEL stage=production
+# Install runtime dependencies with pinned versions
+RUN apk --no-cache add \
+    ca-certificates=20240705-r0 \
+    tzdata=2024a-r0 \
+    curl=8.5.0-r0 && \
+    update-ca-certificates
 
-# Copy timezone data from builder
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+# Create app directory with proper permissions
+WORKDIR /app
 
-# Copy CA certificates
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Create non-root user for security
+RUN addgroup -g 10001 -S authservice && \
+    adduser -S authservice -u 10001 -G authservice
 
-# Copy the binary
-COPY --from=builder /build/auth-service /auth-service
+# Copy the binary from build stage
+COPY --from=build --chown=authservice:authservice /app/auth-service /app/auth-service
+
+# Create logs directory
+RUN mkdir -p /app/logs && \
+    chown authservice:authservice /app/logs
+
+# Switch to non-root user
+USER authservice
 
 # Expose port
 EXPOSE 8080
 
-# Health check
+# Health check using the service's health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD /auth-service --health-check
+    CMD curl -f http://localhost:8080/api/v1/auth/health/live || exit 1
 
-# Create non-root user (even though scratch doesn't have user management,
-# this sets the user ID for the process)
-USER 1000:1000
-
-# Run the application
-ENTRYPOINT ["/auth-service"]
+# Start the application
+CMD ["./auth-service"]

@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth-service
+  labels:
+    name: auth-service
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: namespace
+  annotations:
+    description: "OAuth2 Authentication Service namespace"

@@ -1,12 +1,20 @@
 # Deployment Guide
 
+## Overview
+
+This service provides multiple deployment options:
+
+1. **Docker Compose** - For development and simple production deployments
+2. **Kubernetes** - For production deployments with full automation
+3. **Manual Docker** - For custom containerized deployments
+
 ## Prerequisites
 
 - Go 1.23+ for local development
 - Docker and Docker Compose for containerized deployment
-- Kubernetes cluster for production deployment
+- Kubernetes cluster (or Minikube for local development)
 - Redis instance (standalone or cluster)
-- Load balancer (nginx, HAProxy, or cloud LB)
+- kubectl and envsubst (for Kubernetes deployments)
 
 ## Environment Configuration
 
@@ -75,8 +83,11 @@ make run
 ### Using Docker Compose
 
 ```bash
-# Build and start services
+# Production deployment
 docker-compose up -d
+
+# Development deployment with hot reload
+docker-compose -f docker-compose.dev.yml up -d
 
 # View logs
 docker-compose logs -f auth-service
@@ -115,173 +126,82 @@ docker run -d \
 
 ### Kubernetes Deployment
 
-#### 1. ConfigMap and Secrets
+#### Automated Deployment (Recommended)
 
-```yaml
-# config/configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: oauth2-auth-config
-  namespace: auth
-data:
-  SERVER_ADDRESS: "0.0.0.0:8080"
-  REDIS_ADDRESS: "redis:6379"
-  REDIS_DB: "0"
-  JWT_ISSUER: "https://auth.example.com"
-  LOG_LEVEL: "info"
-  LOG_FORMAT: "json"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: oauth2-auth-secrets
-  namespace: auth
-type: Opaque
-data:
-  JWT_SECRET_KEY: <base64-encoded-secret>
-  REDIS_PASSWORD: <base64-encoded-password>
+The service includes comprehensive Kubernetes deployment automation:
+
+```bash
+# Set required environment variables
+export JWT_SECRET="your-jwt-secret-minimum-32-characters-long" # pragma: allowlist secret
+export REDIS_PASSWORD="your-redis-password" # pragma: allowlist secret
+
+# Complete automated deployment
+./scripts/containerManagement/deploy-container.sh
+
+# Check deployment status
+./scripts/containerManagement/get-container-status.sh
+
+# Update service after code changes
+./scripts/containerManagement/update-container.sh
 ```
 
-#### 2. Deployment
+#### Manual Deployment
 
-```yaml
-# config/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: oauth2-auth-service
-  namespace: auth
-  labels:
-    app: oauth2-auth-service
-spec:
-  replicas: 3
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-  selector:
-    matchLabels:
-      app: oauth2-auth-service
-  template:
-    metadata:
-      labels:
-        app: oauth2-auth-service
-    spec:
-      containers:
-      - name: oauth2-auth-service
-        image: your-registry/oauth2-auth-service:v1.0.0
-        ports:
-        - containerPort: 8080
-          name: http
-        env:
-        - name: JWT_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: oauth2-auth-secrets
-              key: JWT_SECRET_KEY
-        - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: oauth2-auth-secrets
-              key: REDIS_PASSWORD
-        envFrom:
-        - configMapRef:
-            name: oauth2-auth-config
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 1000
-```
-
-#### 3. Service and Ingress
-
-```yaml
-# config/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: oauth2-auth-service
-  namespace: auth
-  labels:
-    app: oauth2-auth-service
-spec:
-  type: ClusterIP
-  ports:
-  - port: 8080
-    targetPort: 8080
-    protocol: TCP
-    name: http
-  selector:
-    app: oauth2-auth-service
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: oauth2-auth-ingress
-  namespace: auth
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-spec:
-  tls:
-  - hosts:
-    - auth.example.com
-    secretName: oauth2-auth-tls
-  rules:
-  - host: auth.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: oauth2-auth-service
-            port:
-              number: 8080
-```
-
-### Deploy to Kubernetes
+For custom deployments, use the Kubernetes manifests directly:
 
 ```bash
 # Create namespace
-kubectl create namespace auth
+kubectl apply -f k8s/namespace.yaml
 
-# Apply configurations
-kubectl apply -f config/configmap.yaml
-kubectl apply -f config/deployment.yaml
-kubectl apply -f config/service.yaml
+# Set environment variables and apply configuration
+envsubst < k8s/configmap-template.yaml | kubectl apply -f -
+envsubst < k8s/secret-template.yaml | kubectl apply -f -
+
+# Deploy all resources
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/ingress.yaml
+kubectl apply -f k8s/horizontalpodautoscaler.yaml
+kubectl apply -f k8s/poddisruptionbudget.yaml
+kubectl apply -f k8s/networkpolicy.yaml
+kubectl apply -f k8s/servicemonitor.yaml
 
 # Check deployment status
-kubectl get pods -n auth
-kubectl logs -f deployment/oauth2-auth-service -n auth
+kubectl get all -n auth-service
+```
+
+#### Production Features
+
+The Kubernetes deployment includes:
+
+- **Auto-scaling**: HPA with CPU/memory targets (2-10 replicas)
+- **Security**: Network policies, security contexts, non-root execution
+- **Monitoring**: Prometheus metrics, health checks, startup/readiness/liveness probes
+- **High Availability**: Pod anti-affinity, disruption budgets
+- **Zero-downtime updates**: Rolling deployments with proper configuration
+
+#### Environment Variables
+
+See [k8s/README.md](../k8s/README.md) for complete configuration reference including:
+
+- Server configuration (host, port, timeouts)
+- JWT settings (secret, expiry, issuer)
+- OAuth2 parameters (PKCE, scopes, grant types)
+- Security settings (CORS, rate limiting)
+- Redis configuration (connection, pooling)
+- Logging configuration (level, format)
+
+#### Management Commands
+
+```bash
+# Start service (scale up)
+./scripts/containerManagement/start-container.sh
+
+# Stop service (scale down)
+./scripts/containerManagement/stop-container.sh
+
+# Complete cleanup
+./scripts/containerManagement/cleanup-container.sh
 ```
 
 ## Monitoring Setup
@@ -294,7 +214,7 @@ scrape_configs:
   - job_name: 'oauth2-auth-service'
     static_configs:
       - targets: ['oauth2-auth-service:8080']
-    metrics_path: '/metrics'
+    metrics_path: '/api/v1/auth/metrics'
     scrape_interval: 30s
 ```
 
@@ -391,6 +311,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
 
 ### Health Check Endpoints
 
-- **Health**: `GET /health` - Overall service health
-- **Readiness**: `GET /health/ready` - Service readiness for traffic
-- **Metrics**: `GET /metrics` - Prometheus metrics
+- **Health**: `GET /api/v1/auth/health` - Overall service health
+- **Readiness**: `GET /api/v1/auth/health/ready` - Service readiness for traffic
+- **Liveness**: `GET /api/v1/auth/health/live` - Service liveness check
+- **Metrics**: `GET /api/v1/auth/metrics` - Prometheus metrics

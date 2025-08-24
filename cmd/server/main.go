@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/auth"
@@ -135,19 +136,21 @@ func setupServer(cfg *config.Config, store redis.Store, authService auth.Service
 	// Set up routes
 	router := mux.NewRouter()
 
-	// Health check routes (no middleware for basic functionality)
-	healthMux := http.NewServeMux()
-	healthHandler.RegisterRoutes(healthMux)
-	router.PathPrefix("/health").Handler(healthMux)
-	router.PathPrefix("/metrics").Handler(healthMux)
+	// API v1 router with /api/v1/auth prefix
+	apiV1Router := router.PathPrefix("/api/v1/auth").Subrouter()
+
+	// Register health routes directly on the subrouter
+	apiV1Router.HandleFunc("/health", healthHandler.Health).Methods("GET")
+	apiV1Router.HandleFunc("/health/live", healthHandler.Liveness).Methods("GET")
+	apiV1Router.HandleFunc("/health/ready", healthHandler.Readiness).Methods("GET")
+	apiV1Router.Handle("/metrics", promhttp.Handler()).Methods("GET")
 
 	// OAuth2 routes with full middleware stack
-	oauth2Router := router.PathPrefix("/").Subrouter()
-	oauth2Handler.RegisterRoutes(oauth2Router)
+	oauth2Handler.RegisterRoutes(apiV1Router)
 
-	// Apply middleware to OAuth2 routes
+	// Apply middleware to the entire router
 	finalHandler := middlewareStack.Chain(
-		oauth2Router,
+		router,
 		middlewareStack.Recovery,
 		middlewareStack.RequestLogger,
 		middlewareStack.SecurityHeaders,

@@ -14,6 +14,7 @@ import (
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/constants"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen/recipe-web-app/auth-service/pkg/logger"
 )
 
 const (
@@ -67,6 +68,9 @@ func (m *Stack) RequestLogger(next http.Handler) http.Handler {
 		// Generate request ID and store it in the typed context key
 		requestID := generateRequestID()
 		ctx := context.WithValue(r.Context(), requestIDKey, requestID)
+
+		// Also store the correlation ID using the logger's correlation ID system
+		ctx = logger.SetCorrelationID(ctx, requestID)
 		r = r.WithContext(ctx)
 
 		// Wrap response writer to capture the status code
@@ -78,11 +82,11 @@ func (m *Stack) RequestLogger(next http.Handler) http.Handler {
 		// Process request
 		next.ServeHTTP(wrapped, r)
 
-		// Log request details
+		// Log request details using correlation ID
 		duration := time.Since(start)
 
+		logEntry := logger.WithCorrelationID(r.Context(), m.logger)
 		fields := logrus.Fields{
-			"request_id":     requestID,
 			"method":         r.Method,
 			"path":           r.URL.Path,
 			"query":          r.URL.RawQuery,
@@ -106,7 +110,7 @@ func (m *Stack) RequestLogger(next http.Handler) http.Handler {
 			level = logrus.ErrorLevel
 		}
 
-		m.logger.WithFields(fields).Log(level, "HTTP request processed")
+		logEntry.WithFields(fields).Log(level, "HTTP request processed")
 	})
 }
 
@@ -250,13 +254,12 @@ func (m *Stack) Recovery(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				requestID := getRequestID(r.Context())
+				logEntry := logger.WithCorrelationID(r.Context(), m.logger)
 
-				m.logger.WithFields(logrus.Fields{
-					"request_id": requestID,
-					"method":     r.Method,
-					"path":       r.URL.Path,
-					"panic":      err,
+				logEntry.WithFields(logrus.Fields{
+					"method": r.Method,
+					"path":   r.URL.Path,
+					"panic":  err,
 				}).Error("Panic recovered")
 
 				// Return generic error to client
@@ -360,12 +363,4 @@ func randomString(length int) string {
 		result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 	}
 	return string(result)
-}
-
-// getRequestID extracts the request ID from context.
-func getRequestID(ctx context.Context) string {
-	if requestID, ok := ctx.Value(requestIDKey).(string); ok {
-		return requestID
-	}
-	return "unknown"
 }

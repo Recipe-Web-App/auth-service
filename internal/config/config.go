@@ -152,11 +152,19 @@ type SecurityConfig struct {
 // log level, format, and output destination.
 type LoggingConfig struct {
 	// Level is the logging level (debug, info, warn, error).
-	Level string `envconfig:"LEVEL"  default:"info"`
+	Level string `envconfig:"LEVEL"              default:"info"`
 	// Format is the log output format (json, text).
-	Format string `envconfig:"FORMAT" default:"json"`
+	Format string `envconfig:"FORMAT"             default:"json"`
 	// Output is the log output destination (stdout, stderr, file path).
-	Output string `envconfig:"OUTPUT" default:"stdout"`
+	Output string `envconfig:"OUTPUT"             default:"stdout"`
+	// ConsoleFormat is the format for console output (text, json).
+	ConsoleFormat string `envconfig:"CONSOLE_FORMAT"     default:"text"`
+	// FileFormat is the format for file output (text, json).
+	FileFormat string `envconfig:"FILE_FORMAT"        default:"json"`
+	// FilePath is the path to the log file for dual output.
+	FilePath string `envconfig:"FILE_PATH"`
+	// EnableDualOutput enables both console and file logging simultaneously.
+	EnableDualOutput bool `envconfig:"ENABLE_DUAL_OUTPUT" default:"false"`
 }
 
 // Load reads configuration from environment variables and returns

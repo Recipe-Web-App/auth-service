@@ -1,7 +1,7 @@
 # Multi-stage Docker build for OAuth2 Authentication Service
 #
 # Stage 1: Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Add stage label for build output
 LABEL stage=builder

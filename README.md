@@ -45,7 +45,7 @@ PKCE and Client Credentials Flow for secure microservices authentication.
    ```bash
    git clone https://github.com/your-org/oauth2-auth-service.git
    cd oauth2-auth-service
-   cp .env.example .env
+   cp .env.example .env.local
    ```
 
 2. **Start dependencies:**
@@ -144,6 +144,12 @@ LOG_LEVEL=info
 LOG_FORMAT=json
 ```
 
+Create `.env.local` from the example file:
+
+```bash
+cp .env.example .env.local
+```
+
 See [.env.example](.env.example) for all configuration options.
 
 ## 🧪 Development
@@ -189,7 +195,7 @@ docker build -t oauth2-auth-service .
 docker run -d \
   --name oauth2-auth \
   -p 8080:8080 \
-  --env-file .env \
+  --env-file .env.local \
   oauth2-auth-service
 ```
 

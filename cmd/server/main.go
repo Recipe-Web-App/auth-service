@@ -25,13 +25,13 @@ import (
 )
 
 func main() {
-	// Load .env file only in development (when GO_ENV is not set or set to "development")
+	// Load .env.local file only in development (when GO_ENV is not set or set to "development")
 	goEnv := os.Getenv("GO_ENV")
 	if goEnv == "" || goEnv == "development" {
-		if err := godotenv.Load(); err != nil {
+		if err := godotenv.Load(".env.local"); err != nil {
 			// Only log if the error is not "file not found"
 			if !os.IsNotExist(err) {
-				fmt.Fprintf(os.Stderr, "Warning: Error loading .env file: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Warning: Error loading .env.local file: %v\n", err)
 			}
 		}
 	}

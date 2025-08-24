@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/auth"
@@ -24,6 +25,17 @@ import (
 )
 
 func main() {
+	// Load .env file only in development (when GO_ENV is not set or set to "development")
+	goEnv := os.Getenv("GO_ENV")
+	if goEnv == "" || goEnv == "development" {
+		if err := godotenv.Load(); err != nil {
+			// Only log if the error is not "file not found"
+			if !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Warning: Error loading .env file: %v\n", err)
+			}
+		}
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

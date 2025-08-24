@@ -32,7 +32,18 @@
    # Edit .env with your configuration
    ```
 
-4. **Start Redis (via Docker):**
+4. **Start development environment:**
+
+   Choose one of the following options:
+
+   **Option A: Docker Compose (Recommended)**
+
+   ```bash
+   # Start full development environment
+   docker-compose -f docker-compose.dev.yml up -d
+   ```
+
+   **Option B: Local Redis**
 
    ```bash
    docker run -d --name redis -p 6379:6379 redis:7-alpine
@@ -114,6 +125,11 @@ make security
 
 # Show help
 make help
+
+# Docker Compose commands
+docker-compose -f docker-compose.dev.yml up -d    # Start dev environment
+docker-compose -f docker-compose.dev.yml logs -f  # View logs
+docker-compose -f docker-compose.dev.yml down     # Stop dev environment
 ```
 
 ### Environment Variables
@@ -155,6 +171,39 @@ SECURITY_CORS_ALLOW_CREDENTIALS=true
 LOG_LEVEL=debug
 LOG_FORMAT=json
 ```
+
+### Docker Development Workflow
+
+For containerized development, use Docker Compose:
+
+```bash
+# Start development environment with hot reload
+docker-compose -f docker-compose.dev.yml up -d
+
+# View application logs
+docker-compose -f docker-compose.dev.yml logs -f auth-service
+
+# View all service logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Execute commands in the container
+docker-compose -f docker-compose.dev.yml exec auth-service go test ./...
+
+# Rebuild and restart after Go module changes
+docker-compose -f docker-compose.dev.yml build auth-service
+docker-compose -f docker-compose.dev.yml restart auth-service
+
+# Stop development environment
+docker-compose -f docker-compose.dev.yml down
+```
+
+**Benefits of Docker Development:**
+
+- Consistent environment across team members
+- Automatic Redis setup and management
+- Hot reload for code changes
+- Isolated development environment
+- Easy cleanup and reset
 
 ## Testing Strategy
 

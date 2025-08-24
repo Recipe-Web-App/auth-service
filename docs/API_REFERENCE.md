@@ -8,8 +8,8 @@ Connect specifications.
 
 ## Base URL
 
-- **Development**: `http://localhost:8080`
-- **Production**: `https://auth.example.com`
+- **Development**: `http://localhost:8080/api/v1/auth`
+- **Production**: `https://auth.example.com/api/v1/auth`
 
 ## Authentication
 
@@ -27,7 +27,7 @@ Check the overall health of the service and its dependencies.
 **Request:**
 
 ```http
-GET /health
+GET /api/v1/auth/health
 ```
 
 **Response:**
@@ -55,7 +55,7 @@ Check if the service is ready to accept requests.
 **Request:**
 
 ```http
-GET /health/ready
+GET /api/v1/auth/health/ready
 ```
 
 **Response:**
@@ -81,7 +81,7 @@ Initiates the OAuth2 Authorization Code Flow with PKCE.
 **Request:**
 
 ```http
-GET /oauth2/authorize?response_type=code&client_id=<client_id>&redirect_uri=<redirect_uri>&scope=<scope>&state=<state>&code_challenge=<code_challenge>&code_challenge_method=S256
+GET /api/v1/auth/oauth2/authorize?response_type=code&client_id=<client_id>&redirect_uri=<redirect_uri>&scope=<scope>&state=<state>&code_challenge=<code_challenge>&code_challenge_method=S256
 ```
 
 **Parameters:**
@@ -117,7 +117,7 @@ Exchange authorization codes for tokens or perform client credentials flow.
 **Request:**
 
 ```http
-POST /oauth2/token
+POST /api/v1/auth/oauth2/token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code&code=<code>&redirect_uri=<redirect_uri>&client_id=<client_id>&code_verifier=<code_verifier>
@@ -128,7 +128,7 @@ grant_type=authorization_code&code=<code>&redirect_uri=<redirect_uri>&client_id=
 **Request:**
 
 ```http
-POST /oauth2/token
+POST /api/v1/auth/oauth2/token
 Content-Type: application/x-www-form-urlencoded
 Authorization: Basic <base64(client_id:client_secret)>
 
@@ -140,7 +140,7 @@ grant_type=client_credentials&scope=<scope>
 **Request:**
 
 ```http
-POST /oauth2/token
+POST /api/v1/auth/oauth2/token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token&refresh_token=<refresh_token>&scope=<scope>
@@ -180,7 +180,7 @@ Returns metadata about a token including its validity and claims.
 **Request:**
 
 ```http
-POST /oauth2/introspect
+POST /api/v1/auth/oauth2/introspect
 Content-Type: application/x-www-form-urlencoded
 Authorization: Basic <base64(client_id:client_secret)>
 
@@ -218,7 +218,7 @@ Revokes an access token or refresh token.
 **Request:**
 
 ```http
-POST /oauth2/revoke
+POST /api/v1/auth/oauth2/revoke
 Content-Type: application/x-www-form-urlencoded
 Authorization: Basic <base64(client_id:client_secret)>
 
@@ -248,7 +248,7 @@ Returns information about the authenticated user.
 **Request:**
 
 ```http
-GET /oauth2/userinfo
+GET /api/v1/auth/oauth2/userinfo
 Authorization: Bearer <access_token>
 ```
 
@@ -277,7 +277,7 @@ Returns Prometheus-formatted metrics for monitoring.
 **Request:**
 
 ```http
-GET /metrics
+GET /api/v1/auth/metrics
 ```
 
 **Response:**
@@ -348,7 +348,7 @@ The service supports Cross-Origin Resource Sharing (CORS) with configurable orig
 **Preflight Request:**
 
 ```http
-OPTIONS /oauth2/token
+OPTIONS /api/v1/auth/oauth2/token
 Origin: https://app.example.com
 Access-Control-Request-Method: POST
 Access-Control-Request-Headers: Content-Type, Authorization
@@ -375,7 +375,7 @@ const codeVerifier = generateCodeVerifier();
 const codeChallenge = await generateCodeChallenge(codeVerifier);
 
 // Redirect to authorization endpoint
-const authUrl = new URL('https://auth.example.com/oauth2/authorize');
+const authUrl = new URL('https://auth.example.com/api/v1/auth/oauth2/authorize');
 authUrl.searchParams.set('response_type', 'code');
 authUrl.searchParams.set('client_id', 'my-client');
 authUrl.searchParams.set('redirect_uri', 'https://app.example.com/callback');
@@ -387,7 +387,7 @@ authUrl.searchParams.set('code_challenge_method', 'S256');
 window.location.href = authUrl.toString();
 
 // Exchange code for tokens (in callback handler)
-const tokenResponse = await fetch('https://auth.example.com/oauth2/token', {
+const tokenResponse = await fetch('https://auth.example.com/api/v1/auth/oauth2/token', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -408,7 +408,7 @@ const tokens = await tokenResponse.json();
 
 ```bash
 # Request access token
-curl -X POST https://auth.example.com/oauth2/token \
+curl -X POST https://auth.example.com/api/v1/auth/oauth2/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -H "Authorization: Basic $(echo -n 'client_id:client_secret' | base64)" \
   -d "grant_type=client_credentials&scope=read"
@@ -428,7 +428,7 @@ import "github.com/your-org/oauth2-client-go"
 client := oauth2client.New(oauth2client.Config{
     ClientID:     "my-client",
     ClientSecret: "my-secret", // pragma: allowlist secret
-    TokenURL:     "https://auth.example.com/oauth2/token",
+    TokenURL:     "https://auth.example.com/api/v1/auth/oauth2/token",
 })
 
 token, err := client.ClientCredentials(ctx, "read write")
@@ -448,7 +448,7 @@ const OAuth2Client = require('@your-org/oauth2-client-node');
 const client = new OAuth2Client({
   clientId: 'my-client',
   clientSecret: 'my-secret', // pragma: allowlist secret
-  tokenUrl: 'https://auth.example.com/oauth2/token',
+  tokenUrl: 'https://auth.example.com/api/v1/auth/oauth2/token',
 });
 
 const token = await client.clientCredentials(['read', 'write']);

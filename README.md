@@ -60,16 +60,37 @@ PKCE and Client Credentials Flow for secure microservices authentication.
    make run
    ```
 
-### Docker Compose
+### Docker Compose (Production)
 
 ```bash
+# Production setup with Redis
 docker-compose up -d
+
+# Development setup with hot reload
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+### Kubernetes (Production)
+
+```bash
+# Quick deployment to Minikube
+./scripts/containerManagement/deploy-container.sh
+
+# Manual deployment
+kubectl apply -f k8s/namespace.yaml
+envsubst < k8s/configmap-template.yaml | kubectl apply -f -
+envsubst < k8s/secret-template.yaml | kubectl apply -f -
+kubectl apply -f k8s/
 ```
 
 ### Verify Installation
 
 ```bash
-curl http://localhost:8080/health
+# Local/Docker
+curl http://localhost:8080/api/v1/auth/health
+
+# Kubernetes
+curl http://auth-service.local/api/v1/auth/health
 ```
 
 ## 🔐 OAuth2 Flows
@@ -107,14 +128,14 @@ curl -X POST https://auth.example.com/oauth2/token \
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/oauth2/authorize` | GET | Authorization endpoint (PKCE flow) |
-| `/oauth2/token` | POST | Token endpoint (all flows) |
-| `/oauth2/introspect` | POST | Token introspection |
-| `/oauth2/revoke` | POST | Token revocation |
-| `/oauth2/userinfo` | GET | User information |
-| `/health` | GET | Health check |
-| `/health/ready` | GET | Readiness probe |
-| `/metrics` | GET | Prometheus metrics |
+| `/api/v1/auth/oauth2/authorize` | GET | Authorization endpoint (PKCE flow) |
+| `/api/v1/auth/oauth2/token` | POST | Token endpoint (all flows) |
+| `/api/v1/auth/oauth2/introspect` | POST | Token introspection |
+| `/api/v1/auth/oauth2/revoke` | POST | Token revocation |
+| `/api/v1/auth/oauth2/userinfo` | GET | User information |
+| `/api/v1/auth/health` | GET | Health check |
+| `/api/v1/auth/health/ready` | GET | Readiness probe |
+| `/api/v1/auth/metrics` | GET | Prometheus metrics |
 
 See [API Reference](docs/API_REFERENCE.md) for detailed documentation.
 
@@ -189,30 +210,56 @@ See [Development Guide](docs/DEVELOPMENT.md) for detailed development workflow.
 
 ```bash
 # Build image
-docker build -t oauth2-auth-service .
+docker build -t auth-service .
 
 # Run container
 docker run -d \
-  --name oauth2-auth \
+  --name auth-service \
   -p 8080:8080 \
   --env-file .env.local \
-  oauth2-auth-service
+  auth-service
+```
+
+### Docker Compose
+
+```bash
+# Production deployment
+docker-compose up -d
+
+# Development deployment
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
 ### Kubernetes
 
 ```bash
-# Deploy to Kubernetes
-kubectl apply -f config/
+# Complete automated deployment
+./scripts/containerManagement/deploy-container.sh
+
+# Check deployment status
+./scripts/containerManagement/get-container-status.sh
+
+# Update running service
+./scripts/containerManagement/update-container.sh
 ```
+
+### Management Scripts
+
+- **deploy-container.sh** - Complete deployment automation
+- **start-container.sh** - Start/scale up service
+- **stop-container.sh** - Stop/scale down service
+- **update-container.sh** - Rolling updates
+- **get-container-status.sh** - Status monitoring
+- **cleanup-container.sh** - Complete cleanup
 
 ### Monitoring
 
-- **Health Checks**: `/health` and `/health/ready`
+- **Health Checks**: `/health`, `/health/ready`, `/health/live`
 - **Metrics**: Prometheus metrics at `/metrics`
 - **Logging**: Structured JSON logs
+- **Auto-scaling**: HPA with CPU/memory targets (2-10 replicas)
 
-See [Deployment Guide](docs/DEPLOYMENT.md) for production deployment.
+See [Deployment Guide](docs/DEPLOYMENT.md) and [k8s/README.md](k8s/README.md) for detailed deployment instructions.
 
 ## 📚 Documentation
 
@@ -220,6 +267,8 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for production deployment.
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and components
 - **[Development Guide](docs/DEVELOPMENT.md)** - Development workflow and testing
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment instructions
+- **[Kubernetes Deployment](k8s/README.md)** - Kubernetes manifests and configuration
+- **[Management Scripts](scripts/containerManagement/README.md)** - Container management automation
 - **[OpenAPI Specification](api/openapi.yaml)** - Machine-readable API spec
 
 ## 🔒 Security

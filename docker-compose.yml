@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - '8080:8080'
+    environment:
+      - GO_ENV=production
+      - AUTH_SERVER_HOST=0.0.0.0
+      - AUTH_SERVER_PORT=8080
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=auth-redis-password
+      - JWT_SECRET=production-jwt-secret-change-this
+      - CORS_ORIGINS=https://yourdomain.com,https://api.yourdomain.com
+      - RATE_LIMIT_TTL=3600
+      - RATE_LIMIT_MAX=1000
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - auth-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/api/v1/auth/health/live']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - auth-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    command: redis-server --appendonly yes --requirepass auth-redis-password
+
+volumes:
+  redis_data:
+
+networks:
+  auth-network:
+    driver: bridge

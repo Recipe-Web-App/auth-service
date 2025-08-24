@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Go: Build",
+      "type": "shell",
+      "command": "go build ./...",
+      "group": "build",
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Go: Test (unit, race)",
+      "type": "shell",
+      "command": "go test -race -short ./...",
+      "group": "test",
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Go: Vet",
+      "type": "shell",
+      "command": "go vet ./...",
+      "group": "test",
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Go: Tidy Modules",
+      "type": "shell",
+      "command": "go mod tidy",
+      "problemMatcher": []
+    },
+    {
+      "label": "Go: Lint (golangci-lint)",
+      "type": "shell",
+      "command": "golangci-lint run ./...",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Go: Security Scan (gosec)",
+      "type": "shell",
+      "command": "gosec -fmt=json -out=gosec-report.json -stdout -verbose=text ./...",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: YAML (yamllint)",
+      "type": "shell",
+      "command": "yamllint -c .yamllint.yml k8s/",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: Dockerfile (hadolint)",
+      "type": "shell",
+      "command": "hadolint Dockerfile",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: Markdown (markdownlint)",
+      "type": "shell",
+      "command": "markdownlint --fix **/*.md",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: Kube Score",
+      "type": "shell",
+      "command": "find k8s -name \"*.yaml\" -type f -not -path \"*/templates/*\" | xargs kube-score score",
+      "problemMatcher": []
+    },
+    {
+      "label": "All Checks",
+      "dependsOn": [
+        "Go: Build",
+        "Go: Vet",
+        "Go: Lint (golangci-lint)",
+        "Go: Test (unit, race)",
+        "Go: Security Scan (gosec)",
+        "Lint: YAML (yamllint)",
+        "Lint: Dockerfile (hadolint)",
+        "Lint: Markdown (markdownlint)",
+        "Lint: Kube Score"
+      ],
+      "dependsOrder": "sequence"
+    }
+  ]
+}

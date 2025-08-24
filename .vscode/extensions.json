@@ -1,0 +1,18 @@
+{
+  "recommendations": [
+    "golang.go",
+    "dbaeumer.vscode-eslint",
+    "editorconfig.editorconfig",
+    "redhat.vscode-yaml",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "ms-azuretools.vscode-docker",
+    "davidanson.vscode-markdownlint",
+    "vivaxy.vscode-conventional-commits",
+    "eamodio.gitlens",
+    "zricethezav.detect-secrets",
+    "sonarsource.sonarlint-vscode",
+    "streetsidesoftware.code-spell-checker",
+    "foxundermoon.shell-format",
+    "yzhang.markdown-all-in-one"
+  ]
+}

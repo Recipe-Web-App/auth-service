@@ -1,0 +1,67 @@
+{
+  "go.useLanguageServer": true,
+  "go.formatTool": "goimports",
+  "go.lintTool": "golangci-lint",
+  "go.testFlags": ["-race", "-short"],
+  "go.vetOnSave": "workspace",
+  "go.lintOnSave": "package",
+  "go.buildOnSave": "workspace",
+  "go.toolsManagement.autoUpdate": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll": "explicit"
+  },
+  "editor.defaultFormatter": "golang.go",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.eol": "\n",
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml",
+    "https://json.schemastore.org/kustomization.json": "k8s/**/*.yaml",
+    "kubernetes": "k8s/**/*.yaml"
+  },
+  "yaml.validate": true,
+  "markdownlint.config": {
+    "default": true,
+    "line-length": false,
+    "no-trailing-punctuation": false
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "on",
+      "strings": "on",
+      "other": "on"
+    }
+  },
+  "detect-secrets.enable": true,
+  "go.testOnSave": false,
+  "go.coverOnTestPackage": true,
+  "explorer.compactFolders": false,
+  "breadcrumbs.enabled": true,
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "editor.rulers": [80, 100],
+  "workbench.colorTheme": "Default Dark+",
+  "workbench.editor.enablePreview": false,
+  "cSpell.words": [
+    "envconfig",
+    "gofmt",
+    "goimports",
+    "golangci",
+    "gosec",
+    "HSTS",
+    "HTMLUTF",
+    "jsamuelsen",
+    "kelseyhightower",
+    "logrus",
+    "nosniff",
+    "PKCE",
+    "promhttp",
+    "sirupsen",
+    "stretchr",
+    "testcontainers",
+    "unpadded",
+    "uppercasing"
+  ]
+}

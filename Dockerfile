@@ -1,5 +1,5 @@
 # Multi-stage build for Go auth-service production optimization
-FROM golang:1.23-alpine AS base
+FROM golang:1.25-alpine AS base
 
 # Install build dependencies with pinned versions
 RUN apk add --no-cache \

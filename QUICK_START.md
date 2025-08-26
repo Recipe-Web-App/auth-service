@@ -65,22 +65,6 @@ make get-token CLIENT_ID=$API_GATEWAY_CLIENT_ID CLIENT_SECRET=$API_GATEWAY_CLIEN
 cat .access_token
 ```
 
-## 🏗️ Your 9 Registered Services
-
-After running the registration, you'll have clients for:
-
-1. **Recipe Service** - `$RECIPE_SERVICE_CLIENT_ID`
-2. **User Service** - `$USER_SERVICE_CLIENT_ID`
-3. **Inventory Service** - `$INVENTORY_SERVICE_CLIENT_ID`
-4. **Order Service** - `$ORDER_SERVICE_CLIENT_ID`
-5. **Payment Service** - `$PAYMENT_SERVICE_CLIENT_ID`
-6. **Notification Service** - `$NOTIFICATION_SERVICE_CLIENT_ID`
-7. **Analytics Service** - `$ANALYTICS_SERVICE_CLIENT_ID`
-8. **Search Service** - `$SEARCH_SERVICE_CLIENT_ID`
-9. **API Gateway** - `$API_GATEWAY_CLIENT_ID`
-
-Each service is configured with appropriate scopes and grant types.
-
 ## 📖 Next Steps
 
 - **Integration Examples**: See `examples/` directory for Go and Node.js client code

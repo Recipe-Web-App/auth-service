@@ -21,6 +21,7 @@ import (
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/handlers"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/middleware"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/startup"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/token"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/pkg/logger"
 )
@@ -58,8 +59,12 @@ func main() {
 	store, authService := initializeServices(cfg, log)
 	defer closeStore(store, log)
 
-	// Create sample client for testing
-	createSampleClient(authService, log)
+	// Initialize client registration service and register clients
+	clientRegSvc := startup.NewClientRegistrationService(cfg, authService, log)
+	if regErr := clientRegSvc.RegisterClients(context.Background()); regErr != nil {
+		log.WithError(regErr).Error("Failed to register clients during startup")
+		// Don't exit, continue with service startup
+	}
 
 	// Set up HTTP server
 	server := setupServer(cfg, store, authService, log)
@@ -103,25 +108,6 @@ func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, au
 func closeStore(store redis.Store, log *logrus.Logger) {
 	if storeErr := store.Close(); storeErr != nil {
 		log.WithError(storeErr).Error("Failed to close store connection")
-	}
-}
-
-func createSampleClient(authService auth.Service, log *logrus.Logger) {
-	ctx := context.Background()
-	sampleClient, err := authService.RegisterClient(
-		ctx,
-		"Sample Client",
-		[]string{"http://localhost:3000/callback", "http://localhost:8080/callback"},
-		[]string{"openid", "profile", "email", "read", "write"},
-		[]string{"authorization_code", "client_credentials", "refresh_token"},
-	)
-	if err != nil {
-		log.WithError(err).Warn("Failed to create sample client")
-	} else {
-		log.WithFields(logrus.Fields{
-			"client_id":     sampleClient.ID,
-			"client_secret": sampleClient.Secret,
-		}).Info("Sample client created for testing")
 	}
 }
 

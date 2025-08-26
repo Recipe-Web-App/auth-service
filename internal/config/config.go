@@ -35,6 +35,8 @@ type Config struct {
 	Security SecurityConfig `envconfig:"SECURITY"`
 	// Logging contains logging configuration.
 	Logging LoggingConfig `envconfig:"LOGGING"`
+	// ClientAutoRegister contains client auto-registration configuration.
+	ClientAutoRegister ClientAutoRegisterConfig `envconfig:"CLIENT_AUTO_REGISTER"`
 }
 
 // ServerConfig holds HTTP server configuration including network settings,
@@ -165,6 +167,17 @@ type LoggingConfig struct {
 	FilePath string `envconfig:"FILE_PATH"`
 	// EnableDualOutput enables both console and file logging simultaneously.
 	EnableDualOutput bool `envconfig:"ENABLE_DUAL_OUTPUT" default:"false"`
+}
+
+// ClientAutoRegisterConfig contains client auto-registration configuration
+// for automatically creating OAuth2 clients from configuration files.
+type ClientAutoRegisterConfig struct {
+	// Enabled determines if client auto-registration is enabled.
+	Enabled bool `envconfig:"ENABLED"              default:"false"`
+	// ConfigPath is the path to the client configuration file.
+	ConfigPath string `envconfig:"CONFIG_PATH"          default:"configs/clients.json"`
+	// CreateSampleClient determines if the sample client should be created.
+	CreateSampleClient bool `envconfig:"CREATE_SAMPLE_CLIENT" default:"true"`
 }
 
 // Load reads configuration from environment variables and returns

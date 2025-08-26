@@ -1,0 +1,60 @@
+[
+  {
+    "name": "Recipe Service",
+    "redirect_uris": ["http://recipe-service:8080/callback"],
+    "scopes": ["read", "write", "profile"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "User Service",
+    "redirect_uris": ["http://user-service:8080/callback"],
+    "scopes": ["read", "write", "profile", "email"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Inventory Service",
+    "redirect_uris": ["http://inventory-service:8080/callback"],
+    "scopes": ["read", "write"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Order Service",
+    "redirect_uris": ["http://order-service:8080/callback"],
+    "scopes": ["read", "write", "profile"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Payment Service",
+    "redirect_uris": ["http://payment-service:8080/callback"],
+    "scopes": ["read", "write"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Notification Service",
+    "redirect_uris": ["http://notification-service:8080/callback"],
+    "scopes": ["read", "write", "email"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Analytics Service",
+    "redirect_uris": ["http://analytics-service:8080/callback"],
+    "scopes": ["read"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Search Service",
+    "redirect_uris": ["http://search-service:8080/callback"],
+    "scopes": ["read", "write"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "API Gateway",
+    "redirect_uris": [
+      "http://api-gateway:8080/callback",
+      "http://localhost:3000/callback",
+      "https://your-domain.com/callback"
+    ],
+    "scopes": ["read", "write", "profile", "email", "openid"],
+    "grant_types": ["client_credentials", "authorization_code", "refresh_token"]
+  }
+]

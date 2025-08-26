@@ -462,3 +462,24 @@ linters:
           - gosec
           - noctx
           - wrapcheck
+      # Allow fmt.Print* and long functions in CLI tools
+      - path: 'cmd/client-manager/'
+        linters:
+          - forbidigo
+          - funlen
+          - noctx
+          - mnd
+          - unparam
+          - gocritic
+          - govet
+          - nestif
+      # Allow fmt.Print* and long functions in examples
+      - path: 'examples/'
+        linters:
+          - forbidigo
+          - funlen
+          - noctx
+          - mnd
+          - depguard
+          - gocritic
+          - govet

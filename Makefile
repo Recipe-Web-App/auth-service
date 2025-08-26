@@ -2,8 +2,11 @@
 
 # Build variables
 BINARY_NAME=auth-service
+CLIENT_MANAGER_BINARY=client-manager
 BINARY_PATH=./bin/$(BINARY_NAME)
+CLIENT_MANAGER_PATH=./bin/$(CLIENT_MANAGER_BINARY)
 MAIN_PATH=./cmd/server
+CLIENT_MANAGER_MAIN_PATH=./cmd/client-manager
 GO_FILES=$(shell find . -name "*.go" -type f -not -path "./vendor/*")
 
 # Docker variables
@@ -24,6 +27,13 @@ build: ## Build the application
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p bin
 	go build -ldflags="-w -s" -o $(BINARY_PATH) $(MAIN_PATH)
+
+build-client-manager: ## Build the client manager CLI tool
+	@echo "Building $(CLIENT_MANAGER_BINARY)..."
+	@mkdir -p bin
+	go build -ldflags="-w -s" -o $(CLIENT_MANAGER_PATH) $(CLIENT_MANAGER_MAIN_PATH)
+
+build-all: build build-client-manager ## Build all binaries
 
 run: ## Run the application
 	@echo "Running $(BINARY_NAME)..."
@@ -99,3 +109,36 @@ tools: ## Install development tools
 	@echo "Tools installed successfully"
 
 check: fmt vet lint security test ## Run all checks (format, vet, lint, security, test)
+
+## Client Management Commands
+
+register-clients: ## Register backend service clients using the shell script
+	./scripts/register-clients.sh
+
+register-clients-cli: build-client-manager ## Register backend service clients using CLI tool (batch mode)
+	./$(CLIENT_MANAGER_PATH) -batch
+
+register-clients-config: build-client-manager ## Register clients from config file
+	./$(CLIENT_MANAGER_PATH) -config configs/clients.json
+
+client-manager-help: build-client-manager ## Show client manager help
+	./$(CLIENT_MANAGER_PATH) -h
+
+get-token: ## Get access token for a client (requires CLIENT_ID and CLIENT_SECRET env vars)
+	@if [ -z "$(CLIENT_ID)" ] || [ -z "$(CLIENT_SECRET)" ]; then \
+		echo "Usage: make get-token CLIENT_ID=<id> CLIENT_SECRET=<secret>"; \
+		exit 1; \
+	fi
+	./scripts/get-client-token.sh $(CLIENT_ID) $(CLIENT_SECRET)
+
+## Environment Setup
+
+env-setup: ## Create .env.local file with defaults
+	@if [ ! -f .env.local ]; then \
+		echo "Creating .env.local with default values..."; \
+		echo "# Environment variables for local development" > .env.local; \
+		echo "JWT_SECRET=$$(openssl rand -base64 32)" >> .env.local; \
+		echo ".env.local created with a secure JWT secret"; \
+	else \
+		echo ".env.local already exists"; \
+	fi

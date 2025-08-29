@@ -1,11 +1,13 @@
 # Multi-stage build for Go auth-service production optimization
-FROM golang:1.25-alpine AS base
+FROM golang:1.23-alpine AS base
 
-# Install build dependencies with pinned versions
+# Install build dependencies without pinned versions
+# Alpine 3.22 packages are updated frequently
+# hadolint ignore=DL3018
 RUN apk add --no-cache \
-    git=2.43.0-r0 \
-    ca-certificates=20240705-r0 \
-    tzdata=2024a-r0
+    git \
+    ca-certificates \
+    tzdata
 
 WORKDIR /app
 
@@ -31,11 +33,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Production stage
 FROM alpine:3.22 AS production
 
-# Install runtime dependencies with pinned versions
+# Install runtime dependencies without pinned versions
+# Alpine 3.22 packages are updated frequently
+# hadolint ignore=DL3018
 RUN apk --no-cache add \
-    ca-certificates=20240705-r0 \
-    tzdata=2024a-r0 \
-    curl=8.5.0-r0 && \
+    ca-certificates \
+    tzdata \
+    curl && \
     update-ca-certificates
 
 # Create app directory with proper permissions

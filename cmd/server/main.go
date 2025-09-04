@@ -56,7 +56,7 @@ func main() {
 	}).Info("Service configuration loaded")
 
 	// Initialize dependencies
-	store, authService := initializeServices(cfg, log)
+	store, authService, userService := initializeServices(cfg, log)
 	defer closeStore(store, log)
 
 	// Initialize client registration service and register clients
@@ -67,13 +67,13 @@ func main() {
 	}
 
 	// Set up HTTP server
-	server := setupServer(cfg, store, authService, log)
+	server := setupServer(cfg, store, authService, userService, log)
 
 	// Start and run server with graceful shutdown
 	runServer(server, cfg, log)
 }
 
-func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, auth.Service) {
+func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, auth.Service, auth.UserService) {
 	// Try to initialize Redis store first
 	redisStore, err := redis.NewClient(&cfg.Redis, log)
 	if err != nil {
@@ -90,7 +90,10 @@ func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, au
 		// Initialize OAuth2 service with memory store
 		authService := auth.NewOAuth2Service(cfg, memoryStore, jwtService, pkceService, log)
 
-		return memoryStore, authService
+		// Initialize user service with memory store
+		userService := auth.NewUserService(cfg, memoryStore, jwtService, log)
+
+		return memoryStore, authService, userService
 	}
 
 	log.Info("Successfully connected to Redis store")
@@ -102,7 +105,10 @@ func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, au
 	// Initialize OAuth2 service with Redis store
 	authService := auth.NewOAuth2Service(cfg, redisStore, jwtService, pkceService, log)
 
-	return redisStore, authService
+	// Initialize user service with Redis store
+	userService := auth.NewUserService(cfg, redisStore, jwtService, log)
+
+	return redisStore, authService, userService
 }
 
 func closeStore(store redis.Store, log *logrus.Logger) {
@@ -111,10 +117,20 @@ func closeStore(store redis.Store, log *logrus.Logger) {
 	}
 }
 
-func setupServer(cfg *config.Config, store redis.Store, authService auth.Service, log *logrus.Logger) *http.Server {
+func setupServer(
+	cfg *config.Config,
+	store redis.Store,
+	authService auth.Service,
+	userService auth.UserService,
+	log *logrus.Logger,
+) *http.Server {
 	// Initialize handlers
 	oauth2Handler := handlers.NewOAuth2Handler(authService, cfg, log)
 	healthHandler := handlers.NewHealthHandler(cfg, store, log)
+
+	// Initialize token service for user auth handler
+	jwtService := token.NewJWTService(&cfg.JWT)
+	userAuthHandler := handlers.NewUserAuthHandler(userService, jwtService, cfg, log)
 
 	// Initialize middleware
 	middlewareStack := middleware.NewStack(cfg, store, log)
@@ -133,6 +149,15 @@ func setupServer(cfg *config.Config, store redis.Store, authService auth.Service
 
 	// OAuth2 routes with full middleware stack
 	oauth2Handler.RegisterRoutes(apiV1Router)
+
+	// User authentication routes
+	apiV1Router.HandleFunc("/user-management/auth/register", userAuthHandler.Register).Methods("POST")
+	apiV1Router.HandleFunc("/user-management/auth/login", userAuthHandler.Login).Methods("POST")
+	apiV1Router.HandleFunc("/user-management/auth/logout", userAuthHandler.Logout).Methods("POST")
+	apiV1Router.HandleFunc("/user-management/auth/refresh", userAuthHandler.RefreshToken).Methods("POST")
+	apiV1Router.HandleFunc("/user-management/auth/reset-password", userAuthHandler.RequestPasswordReset).Methods("POST")
+	apiV1Router.HandleFunc("/user-management/auth/reset-password/confirm", userAuthHandler.ConfirmPasswordReset).
+		Methods("POST")
 
 	// Apply middleware to the entire router
 	finalHandler := middlewareStack.Chain(

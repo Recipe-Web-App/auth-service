@@ -1,0 +1,1242 @@
+---
+openapi: 3.1.0
+info:
+  title: OAuth2 Authentication Service
+  description: |
+    Enterprise-grade OAuth2 authentication service supporting Authorization Code Flow with PKCE
+    and Client Credentials Flow for service-to-service authentication.
+
+    This service provides secure token-based authentication with JWT access tokens,
+    opaque refresh tokens, and comprehensive security features including rate limiting,
+    CORS support, and Redis-based session management.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api/v1/auth
+    description: Development server
+  - url: https://auth-service.local/api/v1/auth
+    description: Production server
+
+security:
+  - BearerAuth: []
+  - ClientCredentials: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the service and its dependencies
+      operationId: healthCheck
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health/live:
+    get:
+      summary: Liveness check endpoint
+      description: Returns whether the service is alive. Used by Kubernetes to determine if the pod should be restarted.
+      operationId: livenessCheck
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessResponse'
+
+  /health/ready:
+    get:
+      summary: Readiness check endpoint
+      description: Returns whether the service is ready to accept requests
+      operationId: readinessCheck
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics endpoint
+      description: |
+        Returns service metrics in Prometheus text exposition format for monitoring and observability.
+
+        Metrics include:
+        - HTTP request counts and latencies
+        - OAuth2 token operations (issued, revoked)
+        - Redis operation statistics
+        - Component health status
+        - Service uptime and performance indicators
+      operationId: getMetrics
+      tags:
+        - Monitoring
+      security: []
+      responses:
+        '200':
+          description: Service metrics in Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Prometheus metrics in text exposition format (version 0.0.4)
+                example: |
+                  # HELP auth_http_requests_total Total number of HTTP requests
+                  # TYPE auth_http_requests_total counter
+                  auth_http_requests_total{method="GET",path="/health",status_code="200"} 42
+                  auth_http_requests_total{method="POST",path="/oauth2/token",status_code="200"} 128
+
+                  # HELP auth_http_request_duration_seconds HTTP request duration in seconds
+                  # TYPE auth_http_request_duration_seconds histogram
+                  auth_http_request_duration_seconds_bucket{method="GET",path="/health",le="0.005"} 24
+                  auth_http_request_duration_seconds_bucket{method="GET",path="/health",le="0.01"} 30
+                  auth_http_request_duration_seconds_bucket{method="GET",path="/health",le="0.025"} 34
+
+                  # HELP auth_oauth2_tokens_issued_total Total number of OAuth2 tokens issued
+                  # TYPE auth_oauth2_tokens_issued_total counter
+                  auth_oauth2_tokens_issued_total{grant_type="authorization_code",client_id="sample-client"} 56
+
+                  # HELP auth_component_health_status Health status of service components (1=healthy, 0=unhealthy)
+                  # TYPE auth_component_health_status gauge
+                  auth_component_health_status{component="redis"} 1
+                  auth_component_health_status{component="database"} 1
+
+  /oauth2/authorize:
+    get:
+      summary: OAuth2 authorization endpoint
+      description: |
+        Initiates the OAuth2 Authorization Code Flow with PKCE.
+        This endpoint redirects the user to authenticate and authorize the client application.
+      operationId: authorize
+      tags:
+        - OAuth2
+      security: []
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          description: Must be "code" for authorization code flow
+          schema:
+            type: string
+            enum: [code]
+        - name: client_id
+          in: query
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+        - name: redirect_uri
+          in: query
+          required: true
+          description: The client redirect URI
+          schema:
+            type: string
+            format: uri
+        - name: scope
+          in: query
+          description: The requested scope(s)
+          schema:
+            type: string
+        - name: state
+          in: query
+          description: An opaque value to prevent CSRF attacks
+          schema:
+            type: string
+        - name: code_challenge
+          in: query
+          required: true
+          description: PKCE code challenge
+          schema:
+            type: string
+        - name: code_challenge_method
+          in: query
+          description: PKCE code challenge method
+          schema:
+            type: string
+            enum: [S256]
+            default: S256
+      responses:
+        '302':
+          description: Redirect to client with authorization code or error
+          headers:
+            Location:
+              description: Redirect URI with code or error parameters
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+    post:
+      summary: OAuth2 authorization endpoint (POST)
+      description: |
+        Initiates the OAuth2 Authorization Code Flow with PKCE via POST.
+        This endpoint redirects the user to authenticate and authorize the client application.
+      operationId: authorizePost
+      tags:
+        - OAuth2
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                response_type:
+                  type: string
+                  enum: [code]
+                client_id:
+                  type: string
+                redirect_uri:
+                  type: string
+                  format: uri
+                scope:
+                  type: string
+                state:
+                  type: string
+                code_challenge:
+                  type: string
+                code_challenge_method:
+                  type: string
+                  enum: [S256]
+              required:
+                - response_type
+                - client_id
+                - redirect_uri
+                - code_challenge
+      responses:
+        '302':
+          description: Redirect to client with authorization code or error
+          headers:
+            Location:
+              description: Redirect URI with code or error parameters
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+
+  /oauth2/token:
+    post:
+      summary: OAuth2 token endpoint
+      description: |
+        Exchanges authorization codes for tokens or performs client credentials flow.
+        Supports both Authorization Code Flow and Client Credentials Flow.
+      operationId: token
+      tags:
+        - OAuth2
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/AuthorizationCodeRequest'
+                - $ref: '#/components/schemas/ClientCredentialsRequest'
+                - $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+        '401':
+          description: Invalid client credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+
+  /oauth2/introspect:
+    post:
+      summary: Token introspection endpoint
+      description: Returns metadata about a token including its validity and associated claims
+      operationId: introspect
+      tags:
+        - OAuth2
+      security:
+        - ClientCredentials: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntrospectRequest'
+      responses:
+        '200':
+          description: Token introspection response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntrospectResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+
+  /oauth2/revoke:
+    post:
+      summary: Token revocation endpoint
+      description: Revokes an access token or refresh token
+      operationId: revoke
+      tags:
+        - OAuth2
+      security:
+        - ClientCredentials: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RevokeRequest'
+      responses:
+        '200':
+          description: Token revoked successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+
+  /.well-known/oauth-authorization-server:
+    get:
+      summary: OAuth2 authorization server discovery
+      description: Returns OAuth2 authorization server metadata for client configuration
+      operationId: wellKnownOAuthServer
+      tags:
+        - OAuth2
+      security: []
+      responses:
+        '200':
+          description: Authorization server metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthDiscovery'
+
+  /oauth/clients:
+    post:
+      summary: Register OAuth2 client
+      description: Registers a new OAuth2 client application (development/admin endpoint)
+      operationId: registerClient
+      tags:
+        - OAuth2
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRegistrationRequest'
+      responses:
+        '201':
+          description: Client registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientRegistrationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /oauth/clients/{client_id}:
+    get:
+      summary: Get OAuth2 client details
+      description: Retrieves details of a registered OAuth2 client
+      operationId: getClient
+      tags:
+        - OAuth2
+      security: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientDetails'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /oauth2/userinfo:
+    get:
+      summary: User information endpoint
+      description: Returns information about the authenticated user
+      operationId: userInfo
+      tags:
+        - OAuth2
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+    post:
+      summary: User information endpoint (POST)
+      description: Returns information about the authenticated user via POST
+      operationId: userInfoPost
+      tags:
+        - OAuth2
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                  description: Access token (alternative to Authorization header)
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuth2Error'
+
+  /user-management/auth/register:
+    post:
+      summary: Register new user
+      description: Creates a new user account with the provided credentials
+      operationId: registerUser
+      tags:
+        - User Management
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistrationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /user-management/auth/login:
+    post:
+      summary: User login
+      description: Authenticates a user and returns access tokens
+      operationId: loginUser
+      tags:
+        - User Management
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /user-management/auth/logout:
+    post:
+      summary: User logout
+      description: Invalidates the user's current session
+      operationId: logoutUser
+      tags:
+        - User Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLogoutResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /user-management/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Exchanges a refresh token for new access tokens
+      operationId: refreshUserToken
+      tags:
+        - User Management
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRefreshResponse'
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /user-management/auth/reset-password:
+    post:
+      summary: Request password reset
+      description: Initiates password reset process by sending reset token to email
+      operationId: requestPasswordReset
+      tags:
+        - User Management
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordResetRequest'
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPasswordResetResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+  /user-management/auth/reset-password/confirm:
+    post:
+      summary: Confirm password reset
+      description: Confirms password reset with token and new password
+      operationId: confirmPasswordReset
+      tags:
+        - User Management
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPasswordResetConfirmRequest'
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPasswordResetConfirmResponse'
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ClientCredentials:
+      type: http
+      scheme: basic
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          properties:
+            redis:
+              type: string
+              enum: [up, down]
+        version:
+          type: string
+      required:
+        - status
+        - timestamp
+
+    ReadinessResponse:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - ready
+        - timestamp
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - error
+        - message
+        - timestamp
+
+    OAuth2Error:
+      type: object
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - invalid_client
+            - invalid_grant
+            - unauthorized_client
+            - unsupported_grant_type
+            - invalid_scope
+            - access_denied
+            - unsupported_response_type
+            - server_error
+            - temporarily_unavailable
+        error_description:
+          type: string
+        error_uri:
+          type: string
+          format: uri
+        state:
+          type: string
+      required:
+        - error
+
+    AuthorizationCodeRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code]
+        code:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+        client_id:
+          type: string
+        code_verifier:
+          type: string
+      required:
+        - grant_type
+        - code
+        - redirect_uri
+        - client_id
+        - code_verifier
+
+    ClientCredentialsRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [client_credentials]
+        scope:
+          type: string
+      required:
+        - grant_type
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [refresh_token]
+        refresh_token:
+          type: string
+        scope:
+          type: string
+      required:
+        - grant_type
+        - refresh_token
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: The access token (JWT format)
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Access token lifetime in seconds
+        refresh_token:
+          type: string
+          description: The refresh token (opaque format)
+        scope:
+          type: string
+          description: The granted scope(s)
+      required:
+        - access_token
+        - token_type
+        - expires_in
+
+    IntrospectRequest:
+      type: object
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+          enum: [access_token, refresh_token]
+      required:
+        - token
+
+    IntrospectResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        scope:
+          type: string
+        client_id:
+          type: string
+        sub:
+          type: string
+        exp:
+          type: integer
+        iat:
+          type: integer
+        aud:
+          type: array
+          items:
+            type: string
+      required:
+        - active
+
+    RevokeRequest:
+      type: object
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+          enum: [access_token, refresh_token]
+      required:
+        - token
+
+    LivenessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [alive]
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: string
+      required:
+        - status
+        - timestamp
+        - uptime
+
+    UserInfo:
+      type: object
+      properties:
+        sub:
+          type: string
+          description: Subject identifier
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        preferred_username:
+          type: string
+      required:
+        - sub
+
+    OAuthDiscovery:
+      type: object
+      properties:
+        issuer:
+          type: string
+        authorization_endpoint:
+          type: string
+        token_endpoint:
+          type: string
+        revocation_endpoint:
+          type: string
+        introspection_endpoint:
+          type: string
+        userinfo_endpoint:
+          type: string
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+        revocation_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        introspection_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+      required:
+        - issuer
+
+    ClientRegistrationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Client application name
+        redirect_uris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Allowed redirect URIs
+        scopes:
+          type: array
+          items:
+            type: string
+          description: Requested scopes
+        grant_types:
+          type: array
+          items:
+            type: string
+          description: Supported grant types
+      required:
+        - name
+        - redirect_uris
+
+    ClientRegistrationResponse:
+      type: object
+      properties:
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        name:
+          type: string
+        redirect_uris:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        grant_types:
+          type: array
+          items:
+            type: string
+      required:
+        - client_id
+        - client_secret
+        - name
+        - redirect_uris
+
+    ClientDetails:
+      type: object
+      properties:
+        client_id:
+          type: string
+        name:
+          type: string
+        redirect_uris:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        grant_types:
+          type: array
+          items:
+            type: string
+      required:
+        - client_id
+        - name
+
+    AuthErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          enum: [authentication_error]
+        error_description:
+          type: string
+      required:
+        - error
+        - error_description
+
+    User:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        full_name:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - user_id
+        - username
+        - is_active
+        - created_at
+        - updated_at
+
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+          nullable: true
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Token expiry in seconds
+      required:
+        - access_token
+        - token_type
+        - expires_in
+
+    UserRegistrationRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        full_name:
+          type: string
+          maxLength: 255
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+      required:
+        - username
+        - email
+        - password
+
+    UserRegistrationResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          $ref: '#/components/schemas/Token'
+          nullable: true
+      required:
+        - user
+
+    UserLoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        password:
+          type: string
+      required:
+        - password
+
+    UserLoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          $ref: '#/components/schemas/Token'
+      required:
+        - user
+        - token
+
+    UserLogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        session_invalidated:
+          type: boolean
+      required:
+        - message
+        - session_invalidated
+
+    UserRefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+      required:
+        - refresh_token
+
+    UserRefreshResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        token:
+          $ref: '#/components/schemas/Token'
+      required:
+        - message
+        - token
+
+    UserPasswordResetRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+      required:
+        - email
+
+    UserPasswordResetResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        email_sent:
+          type: boolean
+      required:
+        - message
+        - email_sent
+
+    UserPasswordResetConfirmRequest:
+      type: object
+      properties:
+        reset_token:
+          type: string
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required:
+        - reset_token
+        - new_password
+
+    UserPasswordResetConfirmResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        password_updated:
+          type: boolean
+      required:
+        - message
+        - password_updated
+
+tags:
+  - name: Health
+    description: Health and readiness endpoints
+  - name: Monitoring
+    description: Monitoring and metrics endpoints
+  - name: OAuth2
+    description: OAuth2 authentication and authorization endpoints
+  - name: User Management
+    description: User registration, authentication, and password management endpoints

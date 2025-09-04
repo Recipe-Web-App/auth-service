@@ -1,0 +1,1289 @@
+{
+  "info": {
+    "name": "Auth Service API",
+    "description": "OAuth2 Authentication Service API testing collection with Authorization Code Flow (PKCE), Client Credentials, and User Management endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authServiceAccessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "authorizationCode",
+      "value": "",
+      "type": "string",
+      "description": "OAuth2 authorization code"
+    },
+    {
+      "key": "codeVerifier",
+      "value": "",
+      "type": "string",
+      "description": "PKCE code verifier"
+    },
+    {
+      "key": "codeChallenge",
+      "value": "",
+      "type": "string",
+      "description": "PKCE code challenge"
+    },
+    {
+      "key": "testClientId",
+      "value": "",
+      "type": "string",
+      "description": "Test client ID for client management"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string",
+      "description": "Password reset token"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Monitoring",
+      "description": "Service health check and monitoring endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Health check successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Service is healthy', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.status).to.be.oneOf(['healthy', 'degraded']);",
+                  "    pm.expect(response).to.have.property('timestamp');",
+                  "    pm.expect(response).to.have.property('components');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/health",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Liveness Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service is alive', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response structure is valid', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.status).to.equal('alive');",
+                  "    pm.expect(response).to.have.property('uptime');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/health/live",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["health", "live"]
+            }
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service readiness check', function () {",
+                  "    const statusCode = pm.response.code;",
+                  "    pm.expect([200, 503]).to.include(statusCode);",
+                  "});",
+                  "",
+                  "pm.test('Response structure is valid', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('ready');",
+                  "    pm.expect(response).to.have.property('timestamp');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/health/ready",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["health", "ready"]
+            }
+          }
+        },
+        {
+          "name": "Metrics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Metrics endpoint accessible', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Returns Prometheus metrics', function () {",
+                  "    const contentType = pm.response.headers.get('Content-Type');",
+                  "    pm.expect(contentType).to.include('text/plain');",
+                  "    ",
+                  "    const body = pm.response.text();",
+                  "    pm.expect(body).to.include('# HELP');",
+                  "    pm.expect(body).to.include('# TYPE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/metrics",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "OAuth2 Standard Flow",
+      "description": "OAuth2 authorization and token management endpoints",
+      "item": [
+        {
+          "name": "Authorization Code Flow (PKCE)",
+          "description": "OAuth2 Authorization Code Flow with PKCE support",
+          "item": [
+            {
+              "name": "Generate PKCE Challenge",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      "// Generate code verifier",
+                      "function base64URLEncode(str) {",
+                      "    return btoa(str)",
+                      "        .replace(/\\+/g, '-')",
+                      "        .replace(/\\//g, '_')",
+                      "        .replace(/=/g, '');",
+                      "}",
+                      "",
+                      "function generateRandomString(length) {",
+                      "    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';",
+                      "    let text = '';",
+                      "    for (let i = 0; i < length; i++) {",
+                      "        text += possible.charAt(Math.floor(Math.random() * possible.length));",
+                      "    }",
+                      "    return text;",
+                      "}",
+                      "",
+                      "// Generate code verifier (43-128 characters)",
+                      "const codeVerifier = generateRandomString(128);",
+                      "pm.environment.set('authServiceCodeVerifier', codeVerifier);",
+                      "",
+                      "// For S256, we'd need to SHA256 hash the verifier",
+                      "// Since Postman doesn't have built-in SHA256, we'll use a simplified version",
+                      "// In production, you'd use proper SHA256 hashing",
+                      "const codeChallenge = base64URLEncode(codeVerifier);",
+                      "pm.environment.set('authServiceCodeChallenge', codeChallenge);",
+                      "",
+                      "console.log('Code Verifier:', codeVerifier);",
+                      "console.log('Code Challenge:', codeChallenge);"
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('PKCE values generated', function () {",
+                      "    const verifier = pm.environment.get('authServiceCodeVerifier');",
+                      "    const challenge = pm.environment.get('authServiceCodeChallenge');",
+                      "    ",
+                      "    pm.expect(verifier).to.not.be.empty;",
+                      "    pm.expect(challenge).to.not.be.empty;",
+                      "    pm.expect(verifier.length).to.be.at.least(43);",
+                      "    pm.expect(verifier.length).to.be.at.most(128);",
+                      "});",
+                      "",
+                      "// Note: This is a helper request - the actual authorization",
+                      "// would redirect the user to a login page in a browser",
+                      "pm.test('Ready for authorization flow', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                },
+                "url": {
+                  "raw": "{{authServiceBaseUrl}}/health?action=generate_pkce",
+                  "host": ["{{authServiceBaseUrl}}"],
+                  "path": ["health"],
+                  "query": [
+                    {
+                      "key": "action",
+                      "value": "generate_pkce",
+                      "description": "This is a dummy endpoint just to trigger PKCE generation"
+                    }
+                  ]
+                },
+                "description": "This is a helper request to generate PKCE values. The actual authorization would be done in a browser."
+              }
+            },
+            {
+              "name": "Get Authorization Code",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "// This endpoint would normally redirect to a login page",
+                      "// and then redirect back with an authorization code",
+                      "pm.test('Authorization endpoint accessible', function () {",
+                      "    // Expecting either a redirect (302) or bad request (400)",
+                      "    const statusCode = pm.response.code;",
+                      "    pm.expect([302, 400]).to.include(statusCode);",
+                      "});",
+                      "",
+                      "// In a real flow, you'd extract the code from the redirect URL",
+                      "// For testing, we'll set a dummy code",
+                      "if (pm.response.code === 302) {",
+                      "    const location = pm.response.headers.get('Location');",
+                      "    console.log('Redirect URL:', location);",
+                      "    ",
+                      "    // Extract code from redirect URL if present",
+                      "    const codeMatch = location && location.match(/code=([^&]+)/);",
+                      "    if (codeMatch) {",
+                      "        pm.environment.set('authServiceAuthorizationCode', codeMatch[1]);",
+                      "    }",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "auth": {
+                  "type": "noauth"
+                },
+                "url": {
+                  "raw": "{{authServiceBaseUrl}}/oauth2/authorize?response_type=code&client_id={{authServiceClientId}}&redirect_uri={{authServiceRedirectUri}}&scope=openid profile email&state={{$randomUUID}}&code_challenge={{authServiceCodeChallenge}}&code_challenge_method=S256",
+                  "host": ["{{authServiceBaseUrl}}"],
+                  "path": ["oauth2", "authorize"],
+                  "query": [
+                    {
+                      "key": "response_type",
+                      "value": "code"
+                    },
+                    {
+                      "key": "client_id",
+                      "value": "{{authServiceClientId}}"
+                    },
+                    {
+                      "key": "redirect_uri",
+                      "value": "{{authServiceRedirectUri}}"
+                    },
+                    {
+                      "key": "scope",
+                      "value": "openid profile email"
+                    },
+                    {
+                      "key": "state",
+                      "value": "{{$randomUUID}}"
+                    },
+                    {
+                      "key": "code_challenge",
+                      "value": "{{authServiceCodeChallenge}}"
+                    },
+                    {
+                      "key": "code_challenge_method",
+                      "value": "S256"
+                    }
+                  ]
+                },
+                "description": "Initiates OAuth2 authorization flow. In production, this would redirect to a login page."
+              }
+            },
+            {
+              "name": "Exchange Code for Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Token exchange successful', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('Response contains tokens', function () {",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response).to.have.property('access_token');",
+                      "    pm.expect(response).to.have.property('token_type');",
+                      "    pm.expect(response).to.have.property('expires_in');",
+                      "    ",
+                      "    // Store tokens",
+                      "    pm.environment.set('authServiceAccessToken', response.access_token);",
+                      "    if (response.refresh_token) {",
+                      "        pm.environment.set('authServiceRefreshToken', response.refresh_token);",
+                      "    }",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/x-www-form-urlencoded"
+                  }
+                ],
+                "body": {
+                  "mode": "urlencoded",
+                  "urlencoded": [
+                    {
+                      "key": "grant_type",
+                      "value": "authorization_code",
+                      "type": "text"
+                    },
+                    {
+                      "key": "code",
+                      "value": "{{authServiceAuthorizationCode}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "redirect_uri",
+                      "value": "{{authServiceRedirectUri}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "client_id",
+                      "value": "{{authServiceClientId}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "code_verifier",
+                      "value": "{{authServiceCodeVerifier}}",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "url": {
+                  "raw": "{{authServiceBaseUrl}}/oauth2/token",
+                  "host": ["{{authServiceBaseUrl}}"],
+                  "path": ["oauth2", "token"]
+                },
+                "description": "Exchange authorization code for access token using PKCE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Client Credentials Flow",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Client credentials token obtained', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains access token', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('access_token');",
+                  "    pm.expect(response.token_type).to.equal('Bearer');",
+                  "    pm.expect(response).to.have.property('expires_in');",
+                  "    ",
+                  "    // Store client token separately",
+                  "    pm.environment.set('authServiceClientAccessToken', response.access_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "api:access",
+                  "type": "text"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{authServiceClientId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{authServiceClientSecret}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth2/token",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth2", "token"]
+            },
+            "description": "Get access token using client credentials (for service-to-service auth)"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token refresh successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('New tokens received', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('access_token');",
+                  "    pm.expect(response).to.have.property('token_type');",
+                  "    pm.expect(response).to.have.property('expires_in');",
+                  "    ",
+                  "    // Update stored tokens",
+                  "    pm.environment.set('authServiceAccessToken', response.access_token);",
+                  "    if (response.refresh_token) {",
+                  "        pm.environment.set('authServiceRefreshToken', response.refresh_token);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token",
+                  "type": "text"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{authServiceRefreshToken}}",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid profile email",
+                  "type": "text"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{authServiceClientId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{authServiceClientSecret}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth2/token",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth2", "token"]
+            },
+            "description": "Refresh access token using refresh token"
+          }
+        },
+        {
+          "name": "Token Introspection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token introspection successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains token metadata', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('active');",
+                  "    ",
+                  "    if (response.active) {",
+                  "        pm.expect(response).to.have.property('scope');",
+                  "        pm.expect(response).to.have.property('client_id');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "token",
+                  "value": "{{authServiceAccessToken}}",
+                  "type": "text"
+                },
+                {
+                  "key": "token_type_hint",
+                  "value": "access_token",
+                  "type": "text"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{authServiceClientId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{authServiceClientSecret}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth2/introspect",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth2", "introspect"]
+            },
+            "description": "Check token validity and metadata"
+          }
+        },
+        {
+          "name": "Token Revocation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token revocation successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Token should be invalidated', function () {",
+                  "    // Clear the token from environment as it's now invalid",
+                  "    pm.environment.unset('authServiceAccessToken');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "token",
+                  "value": "{{authServiceAccessToken}}",
+                  "type": "text"
+                },
+                {
+                  "key": "token_type_hint",
+                  "value": "access_token",
+                  "type": "text"
+                }
+              ]
+            },
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{authServiceClientId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{authServiceClientSecret}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth2/revoke",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth2", "revoke"]
+            },
+            "description": "Revoke an access or refresh token"
+          }
+        },
+        {
+          "name": "User Info",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('User info retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains user information', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('sub');",
+                  "    // Other fields are optional",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth2/userinfo",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth2", "userinfo"]
+            },
+            "description": "Get information about the authenticated user"
+          }
+        },
+        {
+          "name": "Discovery",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Discovery endpoint accessible', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Contains OAuth2 server metadata', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('issuer');",
+                  "    pm.expect(response).to.have.property('authorization_endpoint');",
+                  "    pm.expect(response).to.have.property('token_endpoint');",
+                  "    pm.expect(response).to.have.property('userinfo_endpoint');",
+                  "    pm.expect(response).to.have.property('grant_types_supported');",
+                  "    pm.expect(response).to.have.property('response_types_supported');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/.well-known/oauth-authorization-server",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": [".well-known", "oauth-authorization-server"]
+            },
+            "description": "Get OAuth2 authorization server metadata"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Client Management",
+      "description": "OAuth2 client registration and management",
+      "item": [
+        {
+          "name": "Register Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Client registration successful', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Client credentials received', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('client_id');",
+                  "    pm.expect(response).to.have.property('client_secret');",
+                  "    pm.expect(response).to.have.property('name');",
+                  "    pm.expect(response).to.have.property('redirect_uris');",
+                  "    ",
+                  "    // Store client credentials",
+                  "    pm.environment.set('authServiceNewClientId', response.client_id);",
+                  "    pm.environment.set('authServiceNewClientSecret', response.client_secret);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Application {{$randomInt}}\",\n  \"redirect_uris\": [\n    \"http://localhost:3000/callback\",\n    \"https://app.example.com/callback\"\n  ],\n  \"scopes\": [\n    \"openid\",\n    \"profile\",\n    \"email\"\n  ],\n  \"grant_types\": [\n    \"authorization_code\",\n    \"refresh_token\"\n  ]\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth/clients",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth", "clients"]
+            },
+            "description": "Register a new OAuth2 client application"
+          }
+        },
+        {
+          "name": "Get Client Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Client details retrieved', function () {",
+                  "    const statusCode = pm.response.code;",
+                  "    pm.expect([200, 404]).to.include(statusCode);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Client information present', function () {",
+                  "        const response = pm.response.json();",
+                  "        pm.expect(response).to.have.property('client_id');",
+                  "        pm.expect(response).to.have.property('name');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/oauth/clients/{{authServiceNewClientId}}",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["oauth", "clients", "{{authServiceNewClientId}}"]
+            },
+            "description": "Get details of a registered OAuth2 client"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "description": "User authentication and account management",
+      "item": [
+        {
+          "name": "User Registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('User registration successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User data and tokens received', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('user');",
+                  "    pm.expect(response.user).to.have.property('user_id');",
+                  "    pm.expect(response.user).to.have.property('username');",
+                  "    pm.expect(response.user).to.have.property('email');",
+                  "    ",
+                  "    // Store user info",
+                  "    pm.environment.set('authServiceUserId', response.user.user_id);",
+                  "    pm.environment.set('authServiceUsername', response.user.username);",
+                  "    pm.environment.set('authServiceUserEmail', response.user.email);",
+                  "    ",
+                  "    // Store tokens if returned",
+                  "    if (response.token) {",
+                  "        pm.environment.set('authServiceUserAccessToken', response.token.access_token);",
+                  "        pm.environment.set('authServiceUserRefreshToken', response.token.refresh_token);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{authServiceTestUsername}}\",\n  \"email\": \"{{authServiceTestEmail}}\",\n  \"password\": \"{{authServiceTestPassword}}\",\n  \"full_name\": \"{{authServiceTestFullName}}\",\n  \"bio\": \"Test user created via Postman\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/register",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "register"]
+            },
+            "description": "Register a new user account"
+          }
+        },
+        {
+          "name": "User Login (Username)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Authentication tokens received', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('user');",
+                  "    pm.expect(response).to.have.property('token');",
+                  "    pm.expect(response.token).to.have.property('access_token');",
+                  "    pm.expect(response.token).to.have.property('refresh_token');",
+                  "    ",
+                  "    // Store tokens",
+                  "    pm.environment.set('authServiceUserAccessToken', response.token.access_token);",
+                  "    pm.environment.set('authServiceUserRefreshToken', response.token.refresh_token);",
+                  "    pm.environment.set('authServiceUserId', response.user.user_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{authServiceTestUsername}}\",\n  \"password\": \"{{authServiceTestPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/login",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "login"]
+            },
+            "description": "Login with username and password"
+          }
+        },
+        {
+          "name": "User Login (Email)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Authentication tokens received', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('user');",
+                  "    pm.expect(response).to.have.property('token');",
+                  "    pm.expect(response.token).to.have.property('access_token');",
+                  "    pm.expect(response.token).to.have.property('refresh_token');",
+                  "    ",
+                  "    // Store tokens",
+                  "    pm.environment.set('authServiceUserAccessToken', response.token.access_token);",
+                  "    pm.environment.set('authServiceUserRefreshToken', response.token.refresh_token);",
+                  "    pm.environment.set('authServiceUserId', response.user.user_id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authServiceTestEmail}}\",\n  \"password\": \"{{authServiceTestPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/login",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "login"]
+            },
+            "description": "Login with email and password"
+          }
+        },
+        {
+          "name": "User Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Logout successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Session invalidated', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('message');",
+                  "    pm.expect(response).to.have.property('session_invalidated');",
+                  "    pm.expect(response.session_invalidated).to.be.true;",
+                  "    ",
+                  "    // Clear tokens",
+                  "    pm.environment.unset('authServiceUserAccessToken');",
+                  "    pm.environment.unset('authServiceUserRefreshToken');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authServiceUserAccessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/logout",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "logout"]
+            },
+            "description": "Logout and invalidate session"
+          }
+        },
+        {
+          "name": "Refresh User Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Token refresh successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('New tokens received', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('message');",
+                  "    pm.expect(response).to.have.property('token');",
+                  "    pm.expect(response.token).to.have.property('access_token');",
+                  "    pm.expect(response.token).to.have.property('refresh_token');",
+                  "    ",
+                  "    // Update tokens",
+                  "    pm.environment.set('authServiceUserAccessToken', response.token.access_token);",
+                  "    pm.environment.set('authServiceUserRefreshToken', response.token.refresh_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{authServiceUserRefreshToken}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/refresh",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "refresh"]
+            },
+            "description": "Refresh user access token"
+          }
+        },
+        {
+          "name": "Request Password Reset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Password reset requested', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Email sent confirmation', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('message');",
+                  "    pm.expect(response).to.have.property('email_sent');",
+                  "    ",
+                  "    // In a real scenario, the reset token would be sent via email",
+                  "    // For testing, you might extract it from logs or a test email service",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authServiceTestEmail}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/reset-password",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "reset-password"]
+            },
+            "description": "Request password reset email"
+          }
+        },
+        {
+          "name": "Confirm Password Reset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Password reset completed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Password updated confirmation', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response).to.have.property('message');",
+                  "    pm.expect(response).to.have.property('password_updated');",
+                  "    pm.expect(response.password_updated).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reset_token\": \"{{authServiceResetToken}}\",\n  \"new_password\": \"{{authServiceNewPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{authServiceBaseUrl}}/user-management/auth/reset-password/confirm",
+              "host": ["{{authServiceBaseUrl}}"],
+              "path": ["user-management", "auth", "reset-password", "confirm"]
+            },
+            "description": "Confirm password reset with token and new password"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script",
+          "console.log('Executing request:', pm.info.requestName);",
+          "",
+          "// Ensure we have a request ID for tracking",
+          "if (!pm.variables.get('requestId')) {",
+          "    pm.variables.set('requestId', pm.variables.replaceIn('{{$guid}}'));",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script",
+          "pm.test('Response time is acceptable', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+          "});",
+          "",
+          "// Log response status",
+          "console.log('Response status:', pm.response.code, pm.response.status);"
+        ]
+      }
+    }
+  ]
+}

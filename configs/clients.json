@@ -1,60 +1,47 @@
 [
   {
-    "name": "Recipe Service",
-    "redirect_uris": ["http://recipe-service:8080/callback"],
-    "scopes": ["read", "write", "profile"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "User Service",
-    "redirect_uris": ["http://user-service:8080/callback"],
-    "scopes": ["read", "write", "profile", "email"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "Inventory Service",
-    "redirect_uris": ["http://inventory-service:8080/callback"],
-    "scopes": ["read", "write"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "Order Service",
-    "redirect_uris": ["http://order-service:8080/callback"],
-    "scopes": ["read", "write", "profile"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "Payment Service",
-    "redirect_uris": ["http://payment-service:8080/callback"],
-    "scopes": ["read", "write"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "Notification Service",
-    "redirect_uris": ["http://notification-service:8080/callback"],
-    "scopes": ["read", "write", "email"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "Analytics Service",
-    "redirect_uris": ["http://analytics-service:8080/callback"],
-    "scopes": ["read"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "Search Service",
-    "redirect_uris": ["http://search-service:8080/callback"],
-    "scopes": ["read", "write"],
-    "grant_types": ["client_credentials"]
-  },
-  {
-    "name": "API Gateway",
+    "name": "Meal Plan Management Service",
     "redirect_uris": [
-      "http://api-gateway:8080/callback",
-      "http://localhost:3000/callback",
-      "https://your-domain.com/callback"
+      "http://localhost:3000/api/v1/meal-plan-management/auth/callback",
+      "https://meal-plan-management.local/api/v1/meal-plan-management/auth/callback"
     ],
-    "scopes": ["read", "write", "profile", "email", "openid"],
+    "scopes": ["read", "write"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Media Management Service Client",
+    "redirect_uris": [
+      "http://localhost:3000/auth/callback",
+      "http://media-management.local/auth/callback"
+    ],
+    "scopes": ["openid", "profile", "email", "media:read", "media:write"],
+    "grant_types": ["authorization_code", "client_credentials", "refresh_token"]
+  },
+  {
+    "name": "Recipe Management Service",
+    "redirect_uris": [
+      "http://localhost:8080/api/v1/recipe-manager/auth/callback",
+      "https://recipe-manager.local/api/v1/recipe-manager/auth/callback"
+    ],
+    "scopes": ["read", "write"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Recipe Scraper Service",
+    "redirect_uris": [
+      "http://localhost:8000/api/v1/recipe-scraper/auth/callback",
+      "https://recipe-scraper.local/api/v1/recipe-scraper/auth/callback"
+    ],
+    "scopes": ["read", "write", "admin"],
     "grant_types": ["client_credentials", "authorization_code", "refresh_token"]
+  },
+  {
+    "name": "User Management Service",
+    "redirect_uris": [
+      "http://localhost:8000/api/v1/user-management/auth/callback",
+      "https://user-management.local/api/v1/user-management/auth/callback"
+    ],
+    "scopes": ["openid", "profile", "user:read", "user:write", "admin"],
+    "grant_types": ["authorization_code", "client_credentials", "refresh_token"]
   }
 ]

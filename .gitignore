@@ -46,6 +46,10 @@ Thumbs.db
 /bin/
 /dist/
 
+# Built executables
+server
+auth-service
+
 # Logs
 *.log
 

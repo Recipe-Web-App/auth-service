@@ -16,6 +16,13 @@ data:
   REDIS_URL: '${REDIS_URL}'
   REDIS_DB: '${REDIS_DB}'
 
+  # Database Configuration (non-sensitive)
+  POSTGRES_HOST: '${POSTGRES_HOST}'
+  POSTGRES_PORT: '${POSTGRES_PORT}'
+  POSTGRES_DB: '${POSTGRES_DB}'
+  POSTGRES_SCHEMA: '${POSTGRES_SCHEMA}'
+  AUTH_USER: '${AUTH_USER}'
+
   # JWT Configuration (non-sensitive)
   JWT_ISSUER: '${JWT_ISSUER}'
   JWT_ACCESS_TOKEN_EXPIRY: '${JWT_ACCESS_TOKEN_EXPIRY}'

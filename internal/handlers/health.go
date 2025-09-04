@@ -13,6 +13,7 @@ import (
 
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/constants"
+	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/database"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
 )
 
@@ -27,6 +28,7 @@ const (
 type HealthHandler struct {
 	config    *config.Config
 	store     redis.Store
+	dbMgr     *database.Manager
 	logger    *logrus.Logger
 	metrics   *Metrics
 	startTime time.Time
@@ -92,7 +94,12 @@ type Metrics struct {
 }
 
 // NewHealthHandler creates a new health check handler.
-func NewHealthHandler(cfg *config.Config, store redis.Store, logger *logrus.Logger) *HealthHandler {
+func NewHealthHandler(
+	cfg *config.Config,
+	store redis.Store,
+	dbMgr *database.Manager,
+	logger *logrus.Logger,
+) *HealthHandler {
 	metrics := NewMetrics()
 	prometheus.MustRegister(
 		metrics.HTTPRequestsTotal,
@@ -111,6 +118,7 @@ func NewHealthHandler(cfg *config.Config, store redis.Store, logger *logrus.Logg
 	return &HealthHandler{
 		config:    cfg,
 		store:     store,
+		dbMgr:     dbMgr,
 		logger:    logger,
 		metrics:   metrics,
 		startTime: time.Now(),
@@ -220,11 +228,18 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	components := make(map[string]ComponentHealth)
 	overallStatus := StatusHealthy
 
-	// Check storage backend
-	storageHealth := h.checkStorage(ctx)
-	components["storage"] = storageHealth
-	if storageHealth.Status != StatusHealthy {
+	// Check Redis storage backend (critical for OAuth2)
+	redisHealth := h.checkStorage(ctx)
+	components["redis"] = redisHealth
+	if redisHealth.Status != StatusHealthy {
 		overallStatus = StatusUnhealthy
+	}
+
+	// Check database (optional, degrades service when unavailable)
+	databaseHealth := h.checkDatabase(ctx)
+	components["database"] = databaseHealth
+	if databaseHealth.Status != StatusHealthy && overallStatus == StatusHealthy {
+		overallStatus = StatusDegraded
 	}
 
 	// Check configuration
@@ -311,12 +326,17 @@ func (h *HealthHandler) Readiness(w http.ResponseWriter, r *http.Request) {
 	components := make(map[string]ComponentHealth)
 	ready := true
 
-	// Check storage connectivity (required for readiness)
-	storageHealth := h.checkStorage(ctx)
-	components["storage"] = storageHealth
-	if storageHealth.Status != StatusHealthy {
+	// Check Redis connectivity (required for readiness)
+	redisHealth := h.checkStorage(ctx)
+	components["redis"] = redisHealth
+	if redisHealth.Status != StatusHealthy {
 		ready = false
 	}
+
+	// Check database connectivity (optional - service can run without it)
+	databaseHealth := h.checkDatabase(ctx)
+	components["database"] = databaseHealth
+	// Database being down doesn't affect readiness, only degrades functionality
 
 	// Update metrics
 	statusLabel := "ready"
@@ -381,6 +401,63 @@ func (h *HealthHandler) checkStorage(ctx context.Context) ComponentHealth {
 	if storageType == "Redis" && duration > time.Second {
 		status = StatusDegraded
 		message = "Redis response time is slow"
+	}
+
+	return ComponentHealth{
+		Status:       status,
+		Message:      message,
+		LastChecked:  time.Now(),
+		ResponseTime: duration.String(),
+	}
+}
+
+// checkDatabase checks PostgreSQL database connectivity.
+func (h *HealthHandler) checkDatabase(ctx context.Context) ComponentHealth {
+	start := time.Now()
+
+	// If database manager is not configured, return healthy (not required)
+	if h.dbMgr == nil {
+		return ComponentHealth{
+			Status:      StatusHealthy,
+			Message:     "Database not configured (optional)",
+			LastChecked: time.Now(),
+		}
+	}
+
+	// Create a context with timeout for the health check
+	checkCtx, cancel := context.WithTimeout(ctx, HealthCheckTimeout)
+	defer cancel()
+
+	err := h.dbMgr.Ping(checkCtx)
+	duration := time.Since(start)
+
+	if err != nil {
+		h.logger.WithError(err).Debug("Database health check failed")
+		return ComponentHealth{
+			Status:       StatusUnhealthy,
+			Message:      "PostgreSQL connection failed: " + err.Error(),
+			LastChecked:  time.Now(),
+			ResponseTime: duration.String(),
+		}
+	}
+
+	// Check if database is marked as available by the manager
+	if !h.dbMgr.IsAvailable() {
+		return ComponentHealth{
+			Status:       StatusUnhealthy,
+			Message:      "Database marked as unavailable",
+			LastChecked:  time.Now(),
+			ResponseTime: duration.String(),
+		}
+	}
+
+	// Check response time
+	status := StatusHealthy
+	message := "PostgreSQL is healthy"
+
+	if duration > 2*time.Second {
+		status = StatusDegraded
+		message = "PostgreSQL response time is slow"
 	}
 
 	return ComponentHealth{

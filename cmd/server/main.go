@@ -18,6 +18,7 @@ import (
 
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/auth"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/database"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/handlers"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/middleware"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
@@ -56,8 +57,9 @@ func main() {
 	}).Info("Service configuration loaded")
 
 	// Initialize dependencies
-	store, authService, userService := initializeServices(cfg, log)
+	store, dbMgr, authService, userService := initializeServices(cfg, log)
 	defer closeStore(store, log)
+	defer closeDatabase(dbMgr, log)
 
 	// Initialize client registration service and register clients
 	clientRegSvc := startup.NewClientRegistrationService(cfg, authService, log)
@@ -67,13 +69,23 @@ func main() {
 	}
 
 	// Set up HTTP server
-	server := setupServer(cfg, store, authService, userService, log)
+	server := setupServer(cfg, store, dbMgr, authService, userService, log)
 
 	// Start and run server with graceful shutdown
 	runServer(server, cfg, log)
 }
 
-func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, auth.Service, auth.UserService) {
+func initializeServices(
+	cfg *config.Config,
+	log *logrus.Logger,
+) (redis.Store, *database.Manager, auth.Service, auth.UserService) {
+	// Initialize database manager (optional)
+	dbMgr, dbErr := database.NewManager(cfg, log)
+	if dbErr != nil {
+		log.WithError(dbErr).Error("Failed to initialize database manager")
+		dbMgr = nil
+	}
+
 	// Try to initialize Redis store first
 	redisStore, err := redis.NewClient(&cfg.Redis, log)
 	if err != nil {
@@ -90,10 +102,10 @@ func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, au
 		// Initialize OAuth2 service with memory store
 		authService := auth.NewOAuth2Service(cfg, memoryStore, jwtService, pkceService, log)
 
-		// Initialize user service with memory store
-		userService := auth.NewUserService(cfg, memoryStore, jwtService, log)
+		// Initialize user service with memory store and database manager
+		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, dbMgr)
 
-		return memoryStore, authService, userService
+		return memoryStore, dbMgr, authService, userService
 	}
 
 	log.Info("Successfully connected to Redis store")
@@ -105,10 +117,10 @@ func initializeServices(cfg *config.Config, log *logrus.Logger) (redis.Store, au
 	// Initialize OAuth2 service with Redis store
 	authService := auth.NewOAuth2Service(cfg, redisStore, jwtService, pkceService, log)
 
-	// Initialize user service with Redis store
-	userService := auth.NewUserService(cfg, redisStore, jwtService, log)
+	// Initialize user service with Redis store and database manager
+	userService := auth.NewUserService(cfg, redisStore, jwtService, log, dbMgr)
 
-	return redisStore, authService, userService
+	return redisStore, dbMgr, authService, userService
 }
 
 func closeStore(store redis.Store, log *logrus.Logger) {
@@ -117,16 +129,24 @@ func closeStore(store redis.Store, log *logrus.Logger) {
 	}
 }
 
+func closeDatabase(dbMgr *database.Manager, log *logrus.Logger) {
+	if dbMgr != nil {
+		dbMgr.Close()
+		log.Info("Database connections closed")
+	}
+}
+
 func setupServer(
 	cfg *config.Config,
 	store redis.Store,
+	dbMgr *database.Manager,
 	authService auth.Service,
 	userService auth.UserService,
 	log *logrus.Logger,
 ) *http.Server {
 	// Initialize handlers
 	oauth2Handler := handlers.NewOAuth2Handler(authService, cfg, log)
-	healthHandler := handlers.NewHealthHandler(cfg, store, log)
+	healthHandler := handlers.NewHealthHandler(cfg, store, dbMgr, log)
 
 	// Initialize token service for user auth handler
 	jwtService := token.NewJWTService(&cfg.JWT)

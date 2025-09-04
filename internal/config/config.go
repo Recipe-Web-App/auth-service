@@ -27,6 +27,8 @@ type Config struct {
 	Server ServerConfig `envconfig:"SERVER"`
 	// Redis contains Redis connection and pool configuration.
 	Redis RedisConfig `envconfig:"REDIS"`
+	// Database contains PostgreSQL database configuration.
+	Database DatabaseConfig `envconfig:"POSTGRES"`
 	// JWT contains JWT token generation and validation settings.
 	JWT JWTConfig `envconfig:"JWT"`
 	// OAuth2 contains OAuth2 flow-specific configuration.
@@ -85,6 +87,37 @@ type RedisConfig struct {
 	PoolTimeout time.Duration `envconfig:"POOL_TIMEOUT"  default:"4s"`
 	// IdleTimeout is the amount of time after which client closes idle connections.
 	IdleTimeout time.Duration `envconfig:"IDLE_TIMEOUT"  default:"300s"`
+}
+
+// DatabaseConfig contains PostgreSQL database connection configuration
+// including connection pool settings and health check parameters.
+type DatabaseConfig struct {
+	// Host is the PostgreSQL server hostname.
+	Host string `envconfig:"HOST"                default:"localhost"`
+	// Port is the PostgreSQL server port.
+	Port int `envconfig:"PORT"                default:"5432"`
+	// Database is the PostgreSQL database name.
+	Database string `envconfig:"DB"                  default:"recipe_manager"`
+	// Schema is the PostgreSQL schema name.
+	Schema string `envconfig:"SCHEMA"              default:"recipe_manager"`
+	// User is the database username (AUTH_DB_USER from env vars).
+	User string `envconfig:"AUTH_DB_USER"`
+	// Password is the database password (AUTH_DB_PASSWORD from env vars).
+	Password string `envconfig:"AUTH_DB_PASSWORD"`
+	// SSLMode is the SSL connection mode (disable, require, verify-ca, verify-full).
+	SSLMode string `envconfig:"SSL_MODE"            default:"require"`
+	// MaxConn is the maximum number of connections in the pool.
+	MaxConn int32 `envconfig:"MAX_CONN"            default:"25"`
+	// MinConn is the minimum number of connections in the pool.
+	MinConn int32 `envconfig:"MIN_CONN"            default:"5"`
+	// MaxConnLifetime is the maximum lifetime of a connection.
+	MaxConnLifetime time.Duration `envconfig:"MAX_CONN_LIFETIME"   default:"1h"`
+	// MaxConnIdleTime is the maximum idle time for a connection.
+	MaxConnIdleTime time.Duration `envconfig:"MAX_CONN_IDLE_TIME"  default:"30m"`
+	// HealthCheckPeriod is how often to check database connectivity.
+	HealthCheckPeriod time.Duration `envconfig:"HEALTH_CHECK_PERIOD" default:"30s"`
+	// ConnectTimeout is the timeout for establishing connections.
+	ConnectTimeout time.Duration `envconfig:"CONNECT_TIMEOUT"     default:"10s"`
 }
 
 // JWTConfig contains JWT token configuration including signing secrets,
@@ -239,4 +272,22 @@ func (c *Config) ServerAddr() string {
 // IsTLSEnabled returns true if both TLS certificate and key paths are configured.
 func (c *Config) IsTLSEnabled() bool {
 	return c.Server.TLSCert != "" && c.Server.TLSKey != ""
+}
+
+// DatabaseDSN returns the PostgreSQL connection string (Data Source Name).
+func (c *Config) DatabaseDSN() string {
+	return fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=%s search_path=%s",
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.Database,
+		c.Database.User,
+		c.Database.Password,
+		c.Database.SSLMode,
+		c.Database.Schema,
+	)
+}
+
+// IsDatabaseConfigured returns true if database user and password are configured.
+func (c *Config) IsDatabaseConfigured() bool {
+	return c.Database.User != "" && c.Database.Password != ""
 }

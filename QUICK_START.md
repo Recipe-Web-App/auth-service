@@ -4,17 +4,31 @@ This guide shows you the fastest way to get OAuth2 client IDs for your 9 backend
 
 ## 🚀 Quick Setup (5 minutes)
 
-### 1. Start the Auth Service
+### 1. Start Dependencies (Optional)
+
+```bash
+# PostgreSQL (optional - for persistent user storage)
+docker run -d --name postgres -p 5432:5432 \
+  -e POSTGRES_DB=recipe_manager \
+  -e POSTGRES_USER=auth_user \
+  -e POSTGRES_PASSWORD=auth_password \
+  postgres:15-alpine
+
+# Redis (will use in-memory fallback if not available)
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+```
+
+### 2. Start the Auth Service
 
 ```bash
 # Set up environment (if not done already)
 make env-setup
 
-# Start the service
+# Start the service (works without database - will show "degraded" status)
 make run
 ```
 
-### 2. Register All Backend Services
+### 3. Register All Backend Services
 
 Choose one of these methods:
 
@@ -40,7 +54,7 @@ echo "CLIENT_AUTO_REGISTER_ENABLED=true" >> .env.local
 make run
 ```
 
-### 3. Get Your Client Credentials
+### 4. Get Your Client Credentials
 
 After registration, your credentials will be in `.env.clients`:
 
@@ -55,7 +69,7 @@ echo $USER_SERVICE_CLIENT_ID
 # ... etc for all 9 services
 ```
 
-### 4. Test a Client
+### 5. Test a Client
 
 ```bash
 # Get an access token
@@ -63,6 +77,23 @@ make get-token CLIENT_ID=$API_GATEWAY_CLIENT_ID CLIENT_SECRET=$API_GATEWAY_CLIEN
 
 # The token is saved to .access_token for testing
 cat .access_token
+```
+
+### 6. Check Service Status
+
+```bash
+# Check overall health (should show "degraded" without database)
+curl http://localhost:8080/api/v1/auth/health
+
+# Example response with PostgreSQL unavailable:
+# {
+#   "status": "degraded",
+#   "components": {
+#     "redis": {"status": "healthy"},
+#     "database": {"status": "unhealthy"},
+#     "configuration": {"status": "healthy"}
+#   }
+# }
 ```
 
 ## 📖 Next Steps
@@ -88,5 +119,8 @@ make build-client-manager      # Build the CLI tool
 3. **The API Gateway client** supports all OAuth2 flows (authorization code, client credentials, refresh token)
 4. **Other backend services** use client credentials flow for service-to-service auth
 5. **Check the logs** when starting the auth service to see which clients were registered
+6. **Database is optional** - Service works in Redis-only mode if PostgreSQL is unavailable
+7. **Health status shows "degraded"** when database is down but service remains functional
+8. **User management features** (register, login, password reset) require PostgreSQL to be available
 
 That's it! You now have OAuth2 client credentials for all your backend services. 🎉

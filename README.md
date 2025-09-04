@@ -31,8 +31,9 @@ PKCE and Client Credentials Flow for secure microservices authentication.
 
 ### 🏗️ Production Infrastructure
 
-- **Redis Storage** - Session management with in-memory fallback
-- **Health Monitoring** - Liveness and readiness probes
+- **Hybrid Storage** - PostgreSQL for persistent data + Redis for sessions/caching
+- **Graceful Degradation** - Service continues with Redis-only mode when database unavailable
+- **Health Monitoring** - Liveness and readiness probes with degraded status support
 - **Prometheus Metrics** - Comprehensive observability
 - **Structured Logging** - JSON logs with correlation IDs
 - **Graceful Shutdown** - Clean service termination
@@ -71,6 +72,7 @@ PKCE and Client Credentials Flow for secure microservices authentication.
 - Go 1.23+
 - Docker & Docker Compose
 - Redis (or use Docker)
+- PostgreSQL (optional - for persistent user storage)
 
 ### Local Development
 
@@ -85,7 +87,15 @@ PKCE and Client Credentials Flow for secure microservices authentication.
 2. **Start dependencies:**
 
    ```bash
+   # Redis (required for OAuth2 sessions)
    docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+   # PostgreSQL (optional for persistent user storage)
+   docker run -d --name postgres -p 5432:5432 \
+     -e POSTGRES_DB=recipe_manager \
+     -e POSTGRES_USER=auth_user \
+     -e POSTGRES_PASSWORD=auth_password \
+     postgres:15-alpine
    ```
 
 3. **Run the service:**
@@ -97,7 +107,7 @@ PKCE and Client Credentials Flow for secure microservices authentication.
 ### Docker Compose (Production)
 
 ```bash
-# Production setup with Redis
+# Production setup with Redis + PostgreSQL
 docker-compose up -d
 
 # Development setup with hot reload
@@ -148,9 +158,10 @@ curl http://auth-service.local/api/v1/auth/health
 
 | Component | Feature | Status |
 |-----------|---------|--------|
-| **Storage** | Redis with in-memory fallback | ✅ |
+| **Storage** | PostgreSQL + Redis hybrid with graceful degradation | ✅ |
+| **User Management** | Database-first strategy with Redis caching | ✅ |
 | **Security** | Rate limiting, CORS, security headers | ✅ |
-| **Monitoring** | Health checks, Prometheus metrics | ✅ |
+| **Monitoring** | Health checks with degraded status, Prometheus metrics | ✅ |
 | **Logging** | Structured JSON logs with correlation IDs | ✅ |
 | **Configuration** | Environment-based with validation | ✅ |
 | **Deployment** | Docker, Kubernetes, automation scripts | ✅ |
@@ -242,24 +253,34 @@ Configuration via environment variables:
 
 ```bash
 # Server
-SERVER_ADDRESS=0.0.0.0:8080
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
 
-# Redis
-REDIS_ADDRESS=localhost:6379
+# Redis (required)
+REDIS_URL=redis://localhost:6379
 REDIS_PASSWORD=""
+REDIS_DB=0
+
+# PostgreSQL (optional - for persistent storage)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=recipe_manager
+POSTGRES_SCHEMA=recipe_manager
+AUTH_DB_USER=auth_user
+AUTH_DB_PASSWORD=auth_password
 
 # JWT
-JWT_SECRET_KEY=your-256-bit-secret-key
-JWT_ISSUER=https://auth.example.com
+JWT_SECRET=your-256-bit-secret-key
+JWT_ISSUER=auth-service
 JWT_ACCESS_TOKEN_EXPIRY=15m
 
 # Security
-SECURITY_RATE_LIMIT_REQUESTS=100
-SECURITY_CORS_ALLOWED_ORIGINS=https://example.com
+SECURITY_RATE_LIMIT_RPS=100
+SECURITY_ALLOWED_ORIGINS=https://example.com
 
 # Logging
-LOG_LEVEL=info
-LOG_FORMAT=json
+LOGGING_LEVEL=info
+LOGGING_FORMAT=json
 ```
 
 Create `.env.local` from the example file:
@@ -407,8 +428,11 @@ The service exposes Prometheus metrics:
 
 ### Health Checks
 
-- **Liveness**: `/health` - Overall service health
-- **Readiness**: `/health/ready` - Ready to serve traffic
+- **Overall Health**: `/health` - Returns healthy/degraded/unhealthy status
+  - **healthy**: Both PostgreSQL and Redis available
+  - **degraded**: Redis available, PostgreSQL unavailable (200 status for k8s deployment)
+  - **unhealthy**: Redis unavailable (503 status)
+- **Readiness**: `/health/ready` - Ready to serve traffic (Redis-based)
 
 ## 🏗 Architecture
 
@@ -430,13 +454,20 @@ The service exposes Prometheus metrics:
                     │  ├─────────────────┤    │
                     │  │ Infrastructure  │    │
                     │  └─────────────────┘    │
-                    └────────────┬────────────┘
-                                 │
-                      ┌──────────▼──────────┐
-                      │       Redis         │
-                      │ (Sessions, Tokens,  │
-                      │  Rate Limiting)     │
-                      └─────────────────────┘
+                    └────────┬─────┬──────────┘
+                             │     │
+               ┌─────────────▼─┐   │
+               │  PostgreSQL   │   │
+               │(Persistent    │   │
+               │ User Data)    │   │
+               └───────────────┘   │
+                                   │
+                        ┌──────────▼──────────┐
+                        │       Redis         │
+                        │ (Sessions, Tokens,  │
+                        │  Rate Limiting,     │
+                        │     Caching)        │
+                        └─────────────────────┘
 ```
 
 ## 🤝 Contributing

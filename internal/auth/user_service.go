@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/database"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/repository"
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/token"
 )
 
@@ -19,6 +22,19 @@ const (
 	passwordResetTokenExpiry = 15 * time.Minute // pragma: allowlist secret
 	bcryptCost               = 12
 )
+
+// DatabaseUnavailableError represents an error when database operations fail due to database being unavailable.
+type DatabaseUnavailableError struct {
+	Operation string
+}
+
+func (e *DatabaseUnavailableError) Error() string {
+	return fmt.Sprintf("database unavailable for operation: %s", e.Operation)
+}
+
+func (e *DatabaseUnavailableError) HTTPStatusCode() int {
+	return http.StatusServiceUnavailable
+}
 
 type UserService interface {
 	RegisterUser(ctx context.Context, req *models.UserRegistrationRequest) (*models.UserRegistrationResponse, error)
@@ -40,6 +56,8 @@ type userService struct {
 	store    redis.Store
 	tokenSvc token.Service
 	logger   *logrus.Logger
+	dbMgr    *database.Manager
+	userRepo repository.UserRepository
 }
 
 func NewUserService(
@@ -47,13 +65,185 @@ func NewUserService(
 	store redis.Store,
 	tokenSvc token.Service,
 	logger *logrus.Logger,
+	dbMgr *database.Manager,
 ) UserService {
+	var userRepo repository.UserRepository
+	if dbMgr != nil && dbMgr.Pool() != nil {
+		userRepo = repository.NewPostgresUserRepository(dbMgr.Pool())
+	}
+
 	return &userService{
 		config:   cfg,
 		store:    store,
 		tokenSvc: tokenSvc,
 		logger:   logger,
+		dbMgr:    dbMgr,
+		userRepo: userRepo,
 	}
+}
+
+// isDatabaseAvailable checks if database operations can be performed.
+func (s *userService) isDatabaseAvailable() bool {
+	return s.dbMgr != nil && s.dbMgr.IsAvailable() && s.userRepo != nil
+}
+
+// checkDatabaseRequirement returns an error if database is required but unavailable.
+func (s *userService) checkDatabaseRequirement(operation string) error {
+	if !s.isDatabaseAvailable() {
+		return &DatabaseUnavailableError{Operation: operation}
+	}
+	return nil
+}
+
+// checkUsernameExists checks if a username exists in database first, then Redis.
+func (s *userService) checkUsernameExists(ctx context.Context, username string) bool {
+	if s.isDatabaseAvailable() {
+		exists, err := s.userRepo.IsUsernameExists(ctx, username)
+		if err != nil {
+			s.logger.WithError(err).Warn("Failed to check username in database, falling back to Redis")
+		} else {
+			return exists
+		}
+	}
+
+	// Fallback check in Redis
+	existingUser, err := s.store.GetUser(ctx, username)
+	return existingUser != nil && err == nil
+}
+
+// checkEmailExists checks if an email exists in database first, then Redis.
+func (s *userService) checkEmailExists(ctx context.Context, email string) bool {
+	if s.isDatabaseAvailable() {
+		exists, err := s.userRepo.IsEmailExists(ctx, email)
+		if err != nil {
+			s.logger.WithError(err).Warn("Failed to check email in database, falling back to Redis")
+		} else {
+			return exists
+		}
+	}
+
+	// Fallback check in Redis
+	existingUser, err := s.store.GetUserByEmail(ctx, email)
+	return existingUser != nil && err == nil
+}
+
+// createUserInStorage creates user in database first, then caches in Redis.
+func (s *userService) createUserInStorage(ctx context.Context, user *models.UserWithPassword) error {
+	if s.isDatabaseAvailable() {
+		if dbErr := s.userRepo.CreateUser(ctx, user); dbErr != nil {
+			s.logger.WithError(dbErr).Error("Failed to create user in database")
+			return errors.New("failed to create user")
+		}
+		s.logger.WithField("user_id", user.UserID.String()).Info("User created in database")
+
+		// Cache in Redis for performance (best effort)
+		if cacheErr := s.store.StoreUser(ctx, user); cacheErr != nil {
+			s.logger.WithError(cacheErr).Warn("Failed to cache user in Redis (non-fatal)")
+		}
+		return nil
+	}
+
+	// Fallback to Redis-only mode (shouldn't happen due to earlier check)
+	if storeErr := s.store.StoreUser(ctx, user); storeErr != nil {
+		s.logger.WithError(storeErr).Error("Failed to store user in Redis")
+		return errors.New("failed to create user")
+	}
+	return nil
+}
+
+// getUserByIdentifier gets user by username or email with database-first strategy.
+func (s *userService) getUserByIdentifier(
+	ctx context.Context,
+	username *string,
+	email *string,
+) (*models.UserWithPassword, error) {
+	var user *models.UserWithPassword
+	var err error
+
+	if username != nil {
+		user, err = s.getUserByUsername(ctx, *username)
+		if err != nil {
+			s.logger.WithField("username", *username).Warn("User not found")
+			return nil, errors.New("invalid credentials")
+		}
+	} else if email != nil {
+		user, err = s.getUserByEmail(ctx, *email)
+		if err != nil {
+			s.logger.WithField("email", *email).Warn("User not found by email")
+			return nil, errors.New("invalid credentials")
+		}
+	}
+
+	return user, nil
+}
+
+// getUserByUsername retrieves user by username with database-first strategy.
+func (s *userService) getUserByUsername(ctx context.Context, username string) (*models.UserWithPassword, error) {
+	if s.isDatabaseAvailable() {
+		user, err := s.userRepo.GetUserByUsername(ctx, username)
+		if err != nil {
+			s.logger.WithField("username", username).Debug("User not found in database, trying Redis")
+			// Fallback to Redis
+			return s.store.GetUser(ctx, username)
+		}
+		return user, nil
+	}
+	return s.store.GetUser(ctx, username)
+}
+
+// getUserByEmail retrieves user by email with database-first strategy.
+func (s *userService) getUserByEmail(ctx context.Context, email string) (*models.UserWithPassword, error) {
+	if s.isDatabaseAvailable() {
+		user, err := s.userRepo.GetUserByEmail(ctx, email)
+		if err != nil {
+			s.logger.WithField("email", email).Debug("User not found in database, trying Redis")
+			// Fallback to Redis
+			return s.store.GetUserByEmail(ctx, email)
+		}
+		return user, nil
+	}
+	return s.store.GetUserByEmail(ctx, email)
+}
+
+// buildUserFromRequest creates a user model from registration request.
+func (s *userService) buildUserFromRequest(
+	req *models.UserRegistrationRequest,
+	hashedPassword string,
+) *models.UserWithPassword {
+	user := models.NewUser(req.Username, req.Email, "", "")
+	if req.FullName != nil {
+		user.FullName = req.FullName
+	}
+	if req.Bio != nil {
+		user.Bio = req.Bio
+	}
+	user.PasswordHash = hashedPassword // pragma: allowlist secret
+	return user
+}
+
+// updateUserPassword updates user password in database first, then Redis cache. // pragma: allowlist secret.
+func (s *userService) updateUserPassword(ctx context.Context, user *models.UserWithPassword) error {
+	user.UpdatedAt = time.Now()
+
+	if s.isDatabaseAvailable() {
+		if updateErr := s.userRepo.UpdateUser(ctx, user); updateErr != nil {
+			s.logger.WithError(updateErr).Error("Failed to update user password in database")
+			return errors.New("failed to update password")
+		}
+
+		// Update cache in Redis (best effort)
+		if cacheErr := s.store.UpdateUser(ctx, user); cacheErr != nil {
+			s.logger.WithError(cacheErr).Warn("Failed to update user password cache in Redis (non-fatal)")
+		}
+		return nil
+	}
+
+	// Fallback to Redis-only (shouldn't happen due to earlier check)
+	if updateErr := s.store.UpdateUser(ctx, user); updateErr != nil {
+		s.logger.WithError(updateErr).Error("Failed to update user password in Redis")
+		return errors.New("failed to update password")
+	}
+	return nil
 }
 
 func (s *userService) RegisterUser(
@@ -62,21 +252,25 @@ func (s *userService) RegisterUser(
 ) (*models.UserRegistrationResponse, error) {
 	s.logger.WithField("username", req.Username).Info("Processing user registration request")
 
+	// Check if database is required but unavailable
+	if err := s.checkDatabaseRequirement("user registration"); err != nil {
+		s.logger.WithError(err).Warn("Database unavailable for user registration")
+		return nil, err
+	}
+
 	if err := req.Validate(); err != nil {
 		s.logger.WithError(err).Warn("Invalid user registration request")
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	existingUser, err := s.store.GetUser(ctx, req.Username)
-	if err == nil && existingUser != nil {
+	// Check if username exists
+	if s.checkUsernameExists(ctx, req.Username) {
 		return nil, errors.New("username already exists")
 	}
 
-	if req.Email != "" {
-		existingUserByEmail, emailErr := s.store.GetUserByEmail(ctx, req.Email)
-		if emailErr == nil && existingUserByEmail != nil {
-			return nil, errors.New("email already registered")
-		}
+	// Check if email exists (database first, fallback to Redis)
+	if req.Email != "" && s.checkEmailExists(ctx, req.Email) {
+		return nil, errors.New("email already registered")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptCost)
@@ -85,18 +279,9 @@ func (s *userService) RegisterUser(
 		return nil, errors.New("failed to process password")
 	}
 
-	user := models.NewUser(req.Username, req.Email, "", "")
-	if req.FullName != nil {
-		user.FullName = req.FullName
-	}
-	if req.Bio != nil {
-		user.Bio = req.Bio
-	}
-	user.PasswordHash = string(hashedPassword)
-
-	if storeErr := s.store.StoreUser(ctx, user); storeErr != nil {
-		s.logger.WithError(storeErr).Error("Failed to store user")
-		return nil, errors.New("failed to create user")
+	user := s.buildUserFromRequest(req, string(hashedPassword))
+	if createErr := s.createUserInStorage(ctx, user); createErr != nil {
+		return nil, createErr
 	}
 
 	accessToken, accessTokenObj, err := s.tokenSvc.GenerateAccessToken(
@@ -147,26 +332,20 @@ func (s *userService) RegisterUser(
 func (s *userService) LoginUser(ctx context.Context, req *models.UserLoginRequest) (*models.UserLoginResponse, error) {
 	s.logger.Info("Processing user login request")
 
+	// Check if database is required but unavailable
+	if err := s.checkDatabaseRequirement("user login"); err != nil {
+		s.logger.WithError(err).Warn("Database unavailable for user login")
+		return nil, err
+	}
+
 	if err := req.Validate(); err != nil {
 		s.logger.WithError(err).Warn("Invalid user login request")
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	var user *models.UserWithPassword
-	var err error
-
-	if req.Username != nil {
-		user, err = s.store.GetUser(ctx, *req.Username)
-		if err != nil {
-			s.logger.WithField("username", *req.Username).Warn("User not found")
-			return nil, errors.New("invalid credentials")
-		}
-	} else if req.Email != nil {
-		user, err = s.store.GetUserByEmail(ctx, *req.Email)
-		if err != nil {
-			s.logger.WithField("email", *req.Email).Warn("User not found by email")
-			return nil, errors.New("invalid credentials")
-		}
+	user, err := s.getUserByIdentifier(ctx, req.Username, req.Email)
+	if err != nil {
+		return nil, err
 	}
 
 	if !user.IsActive {
@@ -316,12 +495,19 @@ func (s *userService) RequestPasswordReset(
 ) (*models.UserPasswordResetResponse, error) {
 	s.logger.WithField("email", req.Email).Info("Processing password reset request")
 
+	// Check if database is required but unavailable
+	if err := s.checkDatabaseRequirement("password reset request"); err != nil {
+		s.logger.WithError(err).Warn("Database unavailable for password reset")
+		return nil, err
+	}
+
 	if err := req.Validate(); err != nil {
 		s.logger.WithError(err).Warn("Invalid password reset request")
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
-	user, err := s.store.GetUserByEmail(ctx, req.Email)
+	user, err := s.getUserByEmail(ctx, req.Email)
+
 	if err != nil {
 		s.logger.WithField("email", req.Email).Debug("User not found for password reset")
 		//nolint:nilerr // Intentionally return success to prevent email enumeration
@@ -364,6 +550,12 @@ func (s *userService) ConfirmPasswordReset(
 ) (*models.UserPasswordResetConfirmResponse, error) {
 	s.logger.Info("Processing password reset confirmation")
 
+	// Check if database is required but unavailable
+	if err := s.checkDatabaseRequirement("password reset confirmation"); err != nil {
+		s.logger.WithError(err).Warn("Database unavailable for password reset confirmation")
+		return nil, err
+	}
+
 	if err := req.Validate(); err != nil {
 		s.logger.WithError(err).Warn("Invalid password reset confirmation request")
 		return nil, fmt.Errorf("validation failed: %w", err)
@@ -386,7 +578,8 @@ func (s *userService) ConfirmPasswordReset(
 		return nil, errors.New("reset token has expired")
 	}
 
-	user, err := s.store.GetUserByEmail(ctx, resetToken.Email)
+	user, err := s.getUserByEmail(ctx, resetToken.Email)
+
 	if err != nil {
 		s.logger.WithError(err).Error("User not found during password reset")
 		return nil, errors.New("user not found")
@@ -404,11 +597,8 @@ func (s *userService) ConfirmPasswordReset(
 	}
 
 	user.PasswordHash = string(hashedPassword)
-	user.UpdatedAt = time.Now()
-
-	if updateErr := s.store.UpdateUser(ctx, user); updateErr != nil {
-		s.logger.WithError(updateErr).Error("Failed to update user password")
-		return nil, errors.New("failed to update password")
+	if updateErr := s.updateUserPassword(ctx, user); updateErr != nil {
+		return nil, updateErr
 	}
 
 	resetToken.Used = true

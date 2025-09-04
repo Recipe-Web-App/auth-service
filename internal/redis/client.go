@@ -174,6 +174,45 @@ type Store interface {
 	// Automatically sets TTL on first increment of a new counter.
 	// The bool return indicates if the request is allowed (true) or rate limited (false).
 	CheckRateLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error)
+
+	// StoreUser persists a user with password in Redis.
+	// The user is stored without TTL and remains until explicitly deleted.
+	// Returns an error if marshaling or Redis operation fails.
+	StoreUser(ctx context.Context, user *models.UserWithPassword) error
+
+	// GetUser retrieves a user by username.
+	// Returns nil and "user not found" error if the user doesn't exist.
+	// Returns an error if unmarshaling or Redis operation fails.
+	GetUser(ctx context.Context, username string) (*models.UserWithPassword, error)
+
+	// GetUserByEmail retrieves a user by email address.
+	// Returns nil and "user not found" error if the user doesn't exist.
+	// Returns an error if unmarshaling or Redis operation fails.
+	GetUserByEmail(ctx context.Context, email string) (*models.UserWithPassword, error)
+
+	// UpdateUser updates an existing user's information.
+	// Returns an error if the user doesn't exist or Redis operation fails.
+	UpdateUser(ctx context.Context, user *models.UserWithPassword) error
+
+	// DeleteUser removes a user from Redis.
+	// Returns an error if the Redis delete operation fails.
+	// Does not return an error if the user doesn't exist.
+	DeleteUser(ctx context.Context, username string) error
+
+	// StorePasswordResetToken persists a password reset token with TTL.
+	// The token automatically expires after the specified duration.
+	// Returns an error if marshaling or Redis operation fails.
+	StorePasswordResetToken(ctx context.Context, token *models.PasswordResetToken, ttl time.Duration) error
+
+	// GetPasswordResetToken retrieves a password reset token.
+	// Returns nil and "password reset token not found" error if expired or non-existent.
+	// Returns an error if unmarshaling or Redis operation fails.
+	GetPasswordResetToken(ctx context.Context, token string) (*models.PasswordResetToken, error)
+
+	// DeletePasswordResetToken removes a password reset token from Redis.
+	// Typically called after password reset to prevent replay attacks.
+	// Returns an error if the Redis delete operation fails.
+	DeletePasswordResetToken(ctx context.Context, token string) error
 }
 
 // NewClient creates a new Redis client instance with the provided configuration.
@@ -910,4 +949,310 @@ func maskToken(token string) string {
 		return "***"
 	}
 	return token[:4] + "***" + token[len(token)-4:]
+}
+
+// StoreUser persists a user with password in Redis without expiration.
+// The user data is JSON-serialized and stored using both username and email as keys.
+// User registrations are permanent and remain until explicitly deleted.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - user: User data with password to store
+//
+// Returns:
+//   - error: JSON marshaling or Redis operation error
+func (c *Client) StoreUser(ctx context.Context, user *models.UserWithPassword) error {
+	usernameKey := userKey(user.Username)
+	data, err := json.Marshal(user)
+	if err != nil {
+		return fmt.Errorf("failed to marshal user: %w", err)
+	}
+
+	if setErr := c.rdb.Set(ctx, usernameKey, data, 0).Err(); setErr != nil {
+		return fmt.Errorf("failed to store user: %w", setErr)
+	}
+
+	// Also store by email if email is provided
+	if user.Email != nil && *user.Email != "" {
+		emailKey := userEmailKey(*user.Email)
+		if setErr := c.rdb.Set(ctx, emailKey, data, 0).Err(); setErr != nil {
+			return fmt.Errorf("failed to store user by email: %w", setErr)
+		}
+	}
+
+	c.logger.WithField("username", user.Username).Debug("User stored successfully")
+	return nil
+}
+
+// GetUser retrieves a user by username.
+// Returns a specific "user not found" error if the user doesn't exist in Redis.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - username: Username of the user to retrieve
+//
+// Returns:
+//   - *models.UserWithPassword: User data if found, nil if not found
+//   - error: "user not found", JSON unmarshaling, or Redis operation error
+func (c *Client) GetUser(ctx context.Context, username string) (*models.UserWithPassword, error) {
+	key := userKey(username)
+	data, err := c.rdb.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, errors.New("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	var user models.UserWithPassword
+	if unmarshalErr := json.Unmarshal([]byte(data), &user); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to unmarshal user: %w", unmarshalErr)
+	}
+
+	return &user, nil
+}
+
+// GetUserByEmail retrieves a user by email address.
+// Returns a specific "user not found" error if the user doesn't exist in Redis.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - email: Email address of the user to retrieve
+//
+// Returns:
+//   - *models.UserWithPassword: User data if found, nil if not found
+//   - error: "user not found", JSON unmarshaling, or Redis operation error
+func (c *Client) GetUserByEmail(ctx context.Context, email string) (*models.UserWithPassword, error) {
+	key := userEmailKey(email)
+	data, err := c.rdb.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, errors.New("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
+	}
+
+	var user models.UserWithPassword
+	if unmarshalErr := json.Unmarshal([]byte(data), &user); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to unmarshal user: %w", unmarshalErr)
+	}
+
+	return &user, nil
+}
+
+// UpdateUser updates an existing user's information.
+// Updates both username and email keys if email has changed.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - user: Updated user data
+//
+// Returns:
+//   - error: User retrieval, JSON marshaling, or Redis operation error
+func (c *Client) UpdateUser(ctx context.Context, user *models.UserWithPassword) error {
+	// Get existing user to check for email changes
+	existingUser, err := c.GetUser(ctx, user.Username)
+	if err != nil {
+		return fmt.Errorf("failed to get existing user: %w", err)
+	}
+
+	// Update the user data
+	usernameKey := userKey(user.Username)
+	data, err := json.Marshal(user)
+	if err != nil {
+		return fmt.Errorf("failed to marshal user: %w", err)
+	}
+
+	if setErr := c.rdb.Set(ctx, usernameKey, data, 0).Err(); setErr != nil {
+		return fmt.Errorf("failed to update user: %w", setErr)
+	}
+
+	// Handle email key updates
+	oldEmail := c.getEmailString(existingUser.Email)
+	newEmail := c.getEmailString(user.Email)
+
+	if oldEmail != newEmail {
+		if updateErr := c.updateEmailKeys(ctx, oldEmail, newEmail, data); updateErr != nil {
+			return updateErr
+		}
+	}
+
+	c.logger.WithField("username", user.Username).Debug("User updated successfully")
+	return nil
+}
+
+// DeleteUser removes a user from Redis.
+// Removes both username and email keys.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - username: Username of the user to delete
+//
+// Returns:
+//   - error: Redis operation error, if any
+func (c *Client) DeleteUser(ctx context.Context, username string) error {
+	// Get user to find email for cleanup
+	user, err := c.GetUser(ctx, username)
+	if err != nil && !errors.Is(err, errors.New("user not found")) {
+		return fmt.Errorf("failed to get user for deletion: %w", err)
+	}
+
+	// Delete username key
+	usernameKey := userKey(username)
+	if delErr := c.rdb.Del(ctx, usernameKey).Err(); delErr != nil {
+		return fmt.Errorf("failed to delete user: %w", delErr)
+	}
+
+	// Delete email key if it exists
+	if user != nil && user.Email != nil && *user.Email != "" {
+		emailKey := userEmailKey(*user.Email)
+		if delErr := c.rdb.Del(ctx, emailKey).Err(); delErr != nil {
+			c.logger.WithError(delErr).Warn("Failed to delete user email key")
+		}
+	}
+
+	c.logger.WithField("username", username).Debug("User deleted successfully")
+	return nil
+}
+
+// StorePasswordResetToken persists a password reset token with automatic expiration.
+// The token is JSON-serialized and stored using the key pattern "auth:password_reset:{token}".
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - token: Password reset token data
+//   - ttl: Time-to-live duration after which the token expires automatically
+//
+// Returns:
+//   - error: JSON marshaling or Redis operation error
+func (c *Client) StorePasswordResetToken(
+	ctx context.Context,
+	token *models.PasswordResetToken,
+	ttl time.Duration,
+) error {
+	key := passwordResetKey(token.Token)
+	data, err := json.Marshal(token)
+	if err != nil {
+		return fmt.Errorf("failed to marshal password reset token: %w", err)
+	}
+
+	if setErr := c.rdb.Set(ctx, key, data, ttl).Err(); setErr != nil {
+		return fmt.Errorf("failed to store password reset token: %w", setErr)
+	}
+
+	c.logger.WithField("token", maskToken(token.Token)).Debug("Password reset token stored successfully")
+	return nil
+}
+
+// GetPasswordResetToken retrieves a password reset token and its associated metadata.
+// Returns a specific "password reset token not found" error if the token has expired or doesn't exist.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - token: Password reset token string to retrieve
+//
+// Returns:
+//   - *models.PasswordResetToken: Token data if found and not expired, nil otherwise
+//   - error: "password reset token not found", JSON unmarshaling, or Redis operation error
+func (c *Client) GetPasswordResetToken(ctx context.Context, token string) (*models.PasswordResetToken, error) {
+	key := passwordResetKey(token)
+	data, err := c.rdb.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, errors.New("password reset token not found")
+		}
+		return nil, fmt.Errorf("failed to get password reset token: %w", err)
+	}
+
+	var resetToken models.PasswordResetToken
+	if unmarshalErr := json.Unmarshal([]byte(data), &resetToken); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to unmarshal password reset token: %w", unmarshalErr)
+	}
+
+	return &resetToken, nil
+}
+
+// DeletePasswordResetToken removes a password reset token from Redis.
+// This method is typically called immediately after successful password reset
+// to prevent token replay attacks.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - token: Password reset token string to delete
+//
+// Returns:
+//   - error: Redis operation error, if any
+func (c *Client) DeletePasswordResetToken(ctx context.Context, token string) error {
+	key := passwordResetKey(token)
+	if err := c.rdb.Del(ctx, key).Err(); err != nil {
+		return fmt.Errorf("failed to delete password reset token: %w", err)
+	}
+
+	c.logger.WithField("token", maskToken(token)).Debug("Password reset token deleted successfully")
+	return nil
+}
+
+// userKey generates a Redis key for user storage by username.
+// Uses the pattern "auth:user:{username}" to organize user data.
+//
+// Parameters:
+//   - username: Username for key generation
+//
+// Returns:
+//   - string: Redis key for user storage
+func userKey(username string) string {
+	return fmt.Sprintf("auth:user:%s", username)
+}
+
+// userEmailKey generates a Redis key for user storage by email.
+// Uses the pattern "auth:user:email:{email}" to organize user data by email.
+//
+// Parameters:
+//   - email: Email address for key generation
+//
+// Returns:
+//   - string: Redis key for user storage by email
+func userEmailKey(email string) string {
+	return fmt.Sprintf("auth:user:email:%s", email)
+}
+
+// passwordResetKey generates a Redis key for password reset token storage.
+// Uses the pattern "auth:password_reset:{token}" to organize password reset tokens.
+//
+// Parameters:
+//   - token: Password reset token string
+//
+// Returns:
+//   - string: Redis key for password reset token storage
+func passwordResetKey(token string) string {
+	return fmt.Sprintf("auth:password_reset:%s", token)
+}
+
+// getEmailString safely extracts email string from pointer, returning empty string if nil.
+func (c *Client) getEmailString(email *string) string {
+	if email == nil {
+		return ""
+	}
+	return *email
+}
+
+// updateEmailKeys handles the deletion of old email key and creation of new email key.
+func (c *Client) updateEmailKeys(ctx context.Context, oldEmail, newEmail string, data []byte) error {
+	// Delete old email key if it exists
+	if oldEmail != "" {
+		oldEmailKey := userEmailKey(oldEmail)
+		if delErr := c.rdb.Del(ctx, oldEmailKey).Err(); delErr != nil {
+			c.logger.WithError(delErr).Warn("Failed to delete old email key")
+		}
+	}
+
+	// Set new email key if email is provided
+	if newEmail != "" {
+		newEmailKey := userEmailKey(newEmail)
+		if setErr := c.rdb.Set(ctx, newEmailKey, data, 0).Err(); setErr != nil {
+			return fmt.Errorf("failed to update user by email: %w", setErr)
+		}
+	}
+
+	return nil
 }

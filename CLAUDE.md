@@ -59,24 +59,27 @@ docker-compose up -d                             # Production environment
 
 ## Architecture Overview
 
-This is an enterprise-grade OAuth2 authentication service built in Go with the following architecture:
+This is an enterprise-grade OAuth2 authentication service built in Go with hybrid storage architecture:
 
 ### Core Components
 
 - **HTTP Layer**: Gorilla Mux router with comprehensive middleware stack
 - **Business Logic**: OAuth2 service supporting Authorization Code Flow with PKCE and Client Credentials Flow
-- **Infrastructure**: Redis for session/token storage with fallback to in-memory store
+- **Storage Layer**: PostgreSQL for persistent user data + Redis for sessions/tokens with graceful degradation
 - **Token Services**: JWT generation/validation and PKCE implementation
+- **User Management**: Database-first strategy with Redis caching for performance
 
 ### Key Packages
 
 - `cmd/server/main.go` - Application entry point with dependency injection
-- `internal/auth/` - OAuth2 business logic and client management
-- `internal/handlers/` - HTTP handlers for OAuth2 endpoints and health checks
+- `internal/auth/` - OAuth2 business logic, client management, and user services
+- `internal/handlers/` - HTTP handlers for OAuth2 endpoints, user auth, and health checks
 - `internal/middleware/` - Security middleware (CORS, rate limiting, logging)
 - `internal/token/` - JWT and PKCE token services
+- `internal/database/` - PostgreSQL connection management with health monitoring
+- `internal/repository/` - User data repository interface and PostgreSQL implementation
 - `internal/redis/` - Redis client with fallback memory store
-- `internal/config/` - Environment-based configuration management
+- `internal/config/` - Environment-based configuration management (includes database config)
 - `pkg/logger/` - Enhanced logging with dual output support
 
 ### Configuration
@@ -84,6 +87,7 @@ This is an enterprise-grade OAuth2 authentication service built in Go with the f
 - Environment variables with validation and defaults
 - `.env.local` file for development (automatically loaded)
 - Comprehensive validation including JWT secret length and port ranges
+- PostgreSQL database configuration (optional - service works without database)
 - Support for TLS/HTTPS when certificate paths provided
 
 ### Security Features
@@ -105,6 +109,7 @@ This is an enterprise-grade OAuth2 authentication service built in Go with the f
 
 ### Key Dependencies
 
+- PostgreSQL for persistent user data storage (with pgx driver for connection pooling)
 - Redis for session storage (with in-memory fallback)
 - JWT tokens using golang-jwt/jwt library
 - Gorilla Mux for routing
@@ -115,9 +120,12 @@ This is an enterprise-grade OAuth2 authentication service built in Go with the f
 ### Development Notes
 
 - Uses Go 1.23+ with modules
-- Graceful shutdown support
-- Health checks (liveness/readiness probes)
+- Graceful shutdown support with proper database connection cleanup
+- Health checks with degraded status support (liveness/readiness probes)
 - Prometheus metrics at `/api/v1/auth/metrics`
 - Sample client automatically created for testing
+- Database-first user storage with Redis caching for performance
+- Background database health monitoring with automatic reconnection
+- Service startup independent of database availability (graceful degradation)
 - Docker multi-stage builds for production
 - Kubernetes manifests in `k8s/` directory

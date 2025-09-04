@@ -22,7 +22,7 @@ PKCE support, JWT tokens, and Redis storage.
 
 - **HTTP Layer**: Gorilla Mux router with comprehensive middleware stack
 - **Business Logic**: OAuth2 service supporting Authorization Code Flow with PKCE and Client Credentials Flow
-- **Storage**: Redis for session/token storage with in-memory fallback
+- **Storage**: PostgreSQL for persistent user data + Redis for sessions/tokens with graceful degradation
 - **Token Services**: JWT generation/validation and PKCE implementation
 - **Security**: Rate limiting, CORS, security headers, and TLS support
 
@@ -44,8 +44,8 @@ PKCE support, JWT tokens, and Redis storage.
 - ✅ JWT Access Tokens
 - ✅ Token Introspection & Revocation
 - ✅ Rate Limiting & Security Headers
-- ✅ Redis Storage with Fallback
-- ✅ Health Checks & Metrics
+- ✅ PostgreSQL + Redis Hybrid Storage with Graceful Degradation
+- ✅ Health Checks & Metrics with Degraded Status Support
 - ✅ Graceful Shutdown
 
 ## Quick Start
@@ -94,10 +94,18 @@ OAUTH2_PKCE_REQUIRED=true
 OAUTH2_DEFAULT_SCOPES=openid,profile
 OAUTH2_SUPPORTED_SCOPES=openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin
 
-# Redis Configuration (optional - falls back to in-memory)
+# Redis Configuration (required for OAuth2 sessions)
 REDIS_URL=redis://localhost:6379
 REDIS_PASSWORD=
 REDIS_DB=0
+
+# PostgreSQL Configuration (optional - for persistent user storage)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=recipe_manager
+POSTGRES_SCHEMA=recipe_manager
+AUTH_DB_USER=auth_user
+AUTH_DB_PASSWORD=auth_password
 
 # Security Configuration
 SECURITY_RATE_LIMIT_RPS=100
@@ -141,9 +149,43 @@ Expected response:
   "status": "healthy",
   "timestamp": "2024-01-15T10:30:00Z",
   "version": "1.0.0",
-  "checks": {
-    "database": "healthy",
-    "redis": "healthy"
+  "components": {
+    "redis": {
+      "status": "healthy",
+      "message": "Redis is healthy"
+    },
+    "database": {
+      "status": "healthy",
+      "message": "PostgreSQL is healthy"
+    },
+    "configuration": {
+      "status": "healthy",
+      "message": "Configuration is valid"
+    }
+  }
+}
+```
+
+**Degraded Status Example** (PostgreSQL unavailable):
+
+```json
+{
+  "status": "degraded",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "version": "1.0.0",
+  "components": {
+    "redis": {
+      "status": "healthy",
+      "message": "In-Memory is healthy"
+    },
+    "database": {
+      "status": "unhealthy",
+      "message": "PostgreSQL connection failed: database is not available"
+    },
+    "configuration": {
+      "status": "healthy",
+      "message": "Configuration is valid"
+    }
   }
 }
 ```
@@ -622,6 +664,24 @@ SECURITY_ALLOW_CREDENTIALS=true     # CORS credentials support
 SECURITY_MAX_AGE=86400              # CORS preflight cache time
 SECURITY_SECURE_COOKIES=true        # Mark cookies as secure
 SECURITY_SAME_SITE_COOKIES=strict   # SameSite cookie attribute
+```
+
+##### PostgreSQL Configuration
+
+```env
+POSTGRES_HOST=localhost             # PostgreSQL server hostname
+POSTGRES_PORT=5432                  # PostgreSQL server port
+POSTGRES_DB=recipe_manager          # PostgreSQL database name
+POSTGRES_SCHEMA=recipe_manager      # PostgreSQL schema name
+AUTH_DB_USER=auth_user              # Database username
+AUTH_DB_PASSWORD=auth_password      # Database password
+POSTGRES_SSL_MODE=require           # SSL connection mode
+POSTGRES_MAX_CONN=25                # Maximum connections in pool
+POSTGRES_MIN_CONN=5                 # Minimum connections in pool
+POSTGRES_MAX_CONN_LIFETIME=1h       # Maximum connection lifetime
+POSTGRES_MAX_CONN_IDLE_TIME=30m     # Maximum idle time for connections
+POSTGRES_HEALTH_CHECK_PERIOD=30s    # Database health check interval
+POSTGRES_CONNECT_TIMEOUT=10s        # Connection timeout
 ```
 
 #### Redis Configuration
@@ -1560,6 +1620,64 @@ curl http://localhost:8080/api/v1/auth/health/live
     "redis": "unhealthy"
   }
 }
+```
+
+### PostgreSQL Connection Issues
+
+**Check PostgreSQL Status:**
+
+```bash
+# Test PostgreSQL connection
+psql -h localhost -p 5432 -U auth_user -d recipe_manager -c "SELECT 1"
+
+# Check PostgreSQL logs
+docker logs postgres-container
+
+# Verify database configuration in service
+curl http://localhost:8080/api/v1/auth/health
+```
+
+**Database-Dependent Operations:**
+When PostgreSQL is unavailable, the following endpoints return HTTP 503:
+
+- `POST /api/v1/auth/register` - User registration requires persistent storage
+- `POST /api/v1/auth/login` - User authentication requires user data lookup
+- `POST /api/v1/auth/reset-password` - Password reset requires user verification
+- `POST /api/v1/auth/reset-password/confirm` - Password updates require persistent storage
+
+**Graceful Degradation Behavior:**
+
+- ✅ Service continues running (health endpoint returns 200 "degraded")
+- ✅ OAuth2 flows remain fully functional (Redis-based)
+- ✅ Token operations (refresh, revoke, introspect) work normally
+- ⚠️  User management operations return 503 until database is restored
+- ✅ Background reconnection attempts continue automatically
+
+**Common Database Issues:**
+
+```bash
+# Connection refused
+ERROR: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+
+# Solution: Ensure PostgreSQL is running and accessible
+docker run -d --name postgres -p 5432:5432 \
+  -e POSTGRES_DB=recipe_manager \
+  -e POSTGRES_USER=auth_user \
+  -e POSTGRES_PASSWORD=auth_password \
+  postgres:15-alpine
+
+# Authentication failed
+ERROR: FATAL: password authentication failed for user "auth_user"
+
+# Solution: Check credentials in environment variables
+echo $AUTH_DB_USER
+echo $AUTH_DB_PASSWORD
+
+# Database does not exist
+ERROR: FATAL: database "recipe_manager" does not exist
+
+# Solution: Create database or check POSTGRES_DB setting
+psql -h localhost -U postgres -c "CREATE DATABASE recipe_manager;"
 ```
 
 ### Redis Connection Issues

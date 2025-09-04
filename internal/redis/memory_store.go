@@ -23,17 +23,20 @@ const (
 // It provides the same functionality as the Redis store but without persistence.
 // All data is stored in memory with TTL support via background cleanup goroutines.
 type MemoryStore struct {
-	clients       map[string]*models.Client
-	authCodes     map[string]*expiringItem[*models.AuthorizationCode]
-	accessTokens  map[string]*expiringItem[*models.AccessToken]
-	refreshTokens map[string]*expiringItem[*models.RefreshToken]
-	sessions      map[string]*expiringItem[*models.Session]
-	blacklist     map[string]*expiringItem[bool]
-	rateLimits    map[string]*expiringItem[int]
-	logger        *logrus.Logger
-	mu            sync.RWMutex
-	cleanupTicker *time.Ticker
-	stopCleanup   chan struct{}
+	clients        map[string]*models.Client
+	authCodes      map[string]*expiringItem[*models.AuthorizationCode]
+	accessTokens   map[string]*expiringItem[*models.AccessToken]
+	refreshTokens  map[string]*expiringItem[*models.RefreshToken]
+	sessions       map[string]*expiringItem[*models.Session]
+	blacklist      map[string]*expiringItem[bool]
+	rateLimits     map[string]*expiringItem[int]
+	users          map[string]*models.UserWithPassword // username -> user
+	usersByEmail   map[string]*models.UserWithPassword // email -> user
+	passwordResets map[string]*expiringItem[*models.PasswordResetToken]
+	logger         *logrus.Logger
+	mu             sync.RWMutex
+	cleanupTicker  *time.Ticker
+	stopCleanup    chan struct{}
 }
 
 // expiringItem wraps data with expiration time for TTL support.
@@ -50,16 +53,19 @@ func (e *expiringItem[T]) isExpired() bool {
 // NewMemoryStore creates a new in-memory store with TTL cleanup.
 func NewMemoryStore(logger *logrus.Logger) *MemoryStore {
 	store := &MemoryStore{
-		clients:       make(map[string]*models.Client),
-		authCodes:     make(map[string]*expiringItem[*models.AuthorizationCode]),
-		accessTokens:  make(map[string]*expiringItem[*models.AccessToken]),
-		refreshTokens: make(map[string]*expiringItem[*models.RefreshToken]),
-		sessions:      make(map[string]*expiringItem[*models.Session]),
-		blacklist:     make(map[string]*expiringItem[bool]),
-		rateLimits:    make(map[string]*expiringItem[int]),
-		logger:        logger,
-		cleanupTicker: time.NewTicker(CleanupInterval),
-		stopCleanup:   make(chan struct{}),
+		clients:        make(map[string]*models.Client),
+		authCodes:      make(map[string]*expiringItem[*models.AuthorizationCode]),
+		accessTokens:   make(map[string]*expiringItem[*models.AccessToken]),
+		refreshTokens:  make(map[string]*expiringItem[*models.RefreshToken]),
+		sessions:       make(map[string]*expiringItem[*models.Session]),
+		blacklist:      make(map[string]*expiringItem[bool]),
+		rateLimits:     make(map[string]*expiringItem[int]),
+		users:          make(map[string]*models.UserWithPassword),
+		usersByEmail:   make(map[string]*models.UserWithPassword),
+		passwordResets: make(map[string]*expiringItem[*models.PasswordResetToken]),
+		logger:         logger,
+		cleanupTicker:  time.NewTicker(CleanupInterval),
+		stopCleanup:    make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -91,57 +97,101 @@ func (m *MemoryStore) performCleanup() {
 	now := time.Now()
 	expired := 0
 
-	// Clean auth codes
+	expired += m.cleanAuthCodes(now)
+	expired += m.cleanAccessTokens(now)
+	expired += m.cleanRefreshTokens(now)
+	expired += m.cleanSessions(now)
+	expired += m.cleanBlacklist(now)
+	expired += m.cleanRateLimits(now)
+	expired += m.cleanPasswordResets(now)
+
+	if expired > 0 {
+		m.logger.WithField("expired_items", expired).Debug("Cleaned up expired items from memory store")
+	}
+}
+
+// cleanAuthCodes removes expired authorization codes.
+func (m *MemoryStore) cleanAuthCodes(now time.Time) int {
+	expired := 0
 	for key, item := range m.authCodes {
 		if now.After(item.ExpiresAt) {
 			delete(m.authCodes, key)
 			expired++
 		}
 	}
+	return expired
+}
 
-	// Clean access tokens
+// cleanAccessTokens removes expired access tokens.
+func (m *MemoryStore) cleanAccessTokens(now time.Time) int {
+	expired := 0
 	for key, item := range m.accessTokens {
 		if now.After(item.ExpiresAt) {
 			delete(m.accessTokens, key)
 			expired++
 		}
 	}
+	return expired
+}
 
-	// Clean refresh tokens
+// cleanRefreshTokens removes expired refresh tokens.
+func (m *MemoryStore) cleanRefreshTokens(now time.Time) int {
+	expired := 0
 	for key, item := range m.refreshTokens {
 		if now.After(item.ExpiresAt) {
 			delete(m.refreshTokens, key)
 			expired++
 		}
 	}
+	return expired
+}
 
-	// Clean sessions
+// cleanSessions removes expired sessions.
+func (m *MemoryStore) cleanSessions(now time.Time) int {
+	expired := 0
 	for key, item := range m.sessions {
 		if now.After(item.ExpiresAt) {
 			delete(m.sessions, key)
 			expired++
 		}
 	}
+	return expired
+}
 
-	// Clean blacklist
+// cleanBlacklist removes expired blacklist entries.
+func (m *MemoryStore) cleanBlacklist(now time.Time) int {
+	expired := 0
 	for key, item := range m.blacklist {
 		if now.After(item.ExpiresAt) {
 			delete(m.blacklist, key)
 			expired++
 		}
 	}
+	return expired
+}
 
-	// Clean rate limits
+// cleanRateLimits removes expired rate limit entries.
+func (m *MemoryStore) cleanRateLimits(now time.Time) int {
+	expired := 0
 	for key, item := range m.rateLimits {
 		if now.After(item.ExpiresAt) {
 			delete(m.rateLimits, key)
 			expired++
 		}
 	}
+	return expired
+}
 
-	if expired > 0 {
-		m.logger.WithField("expired_items", expired).Debug("Cleaned up expired items from memory store")
+// cleanPasswordResets removes expired password reset tokens.
+func (m *MemoryStore) cleanPasswordResets(now time.Time) int {
+	expired := 0
+	for key, item := range m.passwordResets {
+		if now.After(item.ExpiresAt) {
+			delete(m.passwordResets, key)
+			expired++
+		}
 	}
+	return expired
 }
 
 // Close shuts down the memory store and cleanup goroutine.
@@ -433,4 +483,139 @@ func (m *MemoryStore) CheckRateLimit(
 	}
 
 	return item.Data <= limit, remaining, nil
+}
+
+// StoreUser stores a user in memory without expiration.
+func (m *MemoryStore) StoreUser(_ context.Context, user *models.UserWithPassword) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.users[user.Username] = user
+	if user.Email != nil && *user.Email != "" {
+		m.usersByEmail[*user.Email] = user
+	}
+	m.logger.WithField("username", user.Username).Debug("User stored in memory")
+	return nil
+}
+
+// GetUser retrieves a user by username from memory.
+func (m *MemoryStore) GetUser(_ context.Context, username string) (*models.UserWithPassword, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	user, exists := m.users[username]
+	if !exists {
+		return nil, errors.New("user not found")
+	}
+
+	return user, nil
+}
+
+// GetUserByEmail retrieves a user by email from memory.
+func (m *MemoryStore) GetUserByEmail(_ context.Context, email string) (*models.UserWithPassword, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	user, exists := m.usersByEmail[email]
+	if !exists {
+		return nil, errors.New("user not found")
+	}
+
+	return user, nil
+}
+
+// UpdateUser updates an existing user's information in memory.
+func (m *MemoryStore) UpdateUser(_ context.Context, user *models.UserWithPassword) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Get existing user to check for email changes
+	existingUser, exists := m.users[user.Username]
+	if !exists {
+		return errors.New("user not found")
+	}
+
+	// Handle email key updates
+	var oldEmail, newEmail string
+	if existingUser.Email != nil {
+		oldEmail = *existingUser.Email
+	}
+	if user.Email != nil {
+		newEmail = *user.Email
+	}
+
+	if oldEmail != newEmail {
+		// Delete old email key if it exists
+		if oldEmail != "" {
+			delete(m.usersByEmail, oldEmail)
+		}
+		// Set new email key if email is provided
+		if newEmail != "" {
+			m.usersByEmail[newEmail] = user
+		}
+	}
+
+	// Update user data
+	m.users[user.Username] = user
+	m.logger.WithField("username", user.Username).Debug("User updated in memory")
+	return nil
+}
+
+// DeleteUser removes a user from memory.
+func (m *MemoryStore) DeleteUser(_ context.Context, username string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Get user to find email for cleanup
+	user, exists := m.users[username]
+	if exists && user.Email != nil && *user.Email != "" {
+		delete(m.usersByEmail, *user.Email)
+	}
+
+	delete(m.users, username)
+	m.logger.WithField("username", username).Debug("User deleted from memory")
+	return nil
+}
+
+// StorePasswordResetToken stores a password reset token with TTL.
+func (m *MemoryStore) StorePasswordResetToken(
+	_ context.Context,
+	token *models.PasswordResetToken,
+	ttl time.Duration,
+) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.passwordResets[token.Token] = &expiringItem[*models.PasswordResetToken]{
+		Data:      token,
+		ExpiresAt: time.Now().Add(ttl),
+	}
+	m.logger.WithField("token", maskToken(token.Token)).Debug("Password reset token stored in memory")
+	return nil
+}
+
+// GetPasswordResetToken retrieves a password reset token from memory.
+func (m *MemoryStore) GetPasswordResetToken(
+	_ context.Context,
+	token string,
+) (*models.PasswordResetToken, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	item, exists := m.passwordResets[token]
+	if !exists || item.isExpired() {
+		return nil, errors.New("password reset token not found")
+	}
+
+	return item.Data, nil
+}
+
+// DeletePasswordResetToken removes a password reset token from memory.
+func (m *MemoryStore) DeletePasswordResetToken(_ context.Context, token string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.passwordResets, token)
+	m.logger.WithField("token", maskToken(token)).Debug("Password reset token deleted from memory")
+	return nil
 }

@@ -114,7 +114,7 @@ type OAuth2Config struct {
 	// DefaultScopes are the scopes granted when none are specified.
 	DefaultScopes []string `envconfig:"DEFAULT_SCOPES"            default:"openid,profile"`
 	// SupportedScopes are all scopes this server supports.
-	SupportedScopes []string `envconfig:"SUPPORTED_SCOPES"          default:"openid,profile,email,read,write"`
+	SupportedScopes []string `envconfig:"SUPPORTED_SCOPES"          default:"openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin"`
 	// SupportedGrantTypes are the OAuth2 grant types this server supports.
 	SupportedGrantTypes []string `envconfig:"SUPPORTED_GRANT_TYPES"     default:"authorization_code,client_credentials,refresh_token"`
 	// SupportedResponseTypes are the OAuth2 response types this server supports.

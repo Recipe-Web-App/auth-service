@@ -81,7 +81,7 @@ export SERVER_PORT="8080"
 # OAuth2 Configuration (optional, defaults provided)
 export OAUTH2_PKCE_REQUIRED="true"
 export OAUTH2_DEFAULT_SCOPES="openid,profile"
-export OAUTH2_SUPPORTED_SCOPES="openid,profile,email,read,write"
+export OAUTH2_SUPPORTED_SCOPES="openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin"
 
 # Rate Limiting (optional, defaults provided)
 export SECURITY_RATE_LIMIT_RPS="100"

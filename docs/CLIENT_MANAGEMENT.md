@@ -306,6 +306,11 @@ Each service is configured with appropriate scopes and grant types for its funct
 - **profile**: Access to user profile information
 - **email**: Access to user email information
 - **openid**: OpenID Connect functionality
+- **media:read**: Read access to media resources
+- **media:write**: Write access to media resources
+- **user:read**: Read access to user management resources
+- **user:write**: Write access to user management resources
+- **admin**: Administrative access to resources
 
 ## Security Best Practices
 

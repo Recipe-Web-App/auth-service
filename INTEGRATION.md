@@ -92,7 +92,7 @@ JWT_REFRESH_TOKEN_EXPIRY=168h
 # OAuth2 Configuration
 OAUTH2_PKCE_REQUIRED=true
 OAUTH2_DEFAULT_SCOPES=openid,profile
-OAUTH2_SUPPORTED_SCOPES=openid,profile,email,read,write
+OAUTH2_SUPPORTED_SCOPES=openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin
 
 # Redis Configuration (optional - falls back to in-memory)
 REDIS_URL=redis://localhost:6379
@@ -604,7 +604,7 @@ OAUTH2_AUTHORIZATION_CODE_EXPIRY=10m      # Auth code lifetime
 OAUTH2_CLIENT_CREDENTIALS_EXPIRY=1h       # Client credentials token lifetime
 OAUTH2_PKCE_REQUIRED=true                 # Enforce PKCE for all clients
 OAUTH2_DEFAULT_SCOPES=openid,profile      # Default scopes when none specified
-OAUTH2_SUPPORTED_SCOPES=openid,profile,email,read,write
+OAUTH2_SUPPORTED_SCOPES=openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin
 OAUTH2_SUPPORTED_GRANT_TYPES=authorization_code,client_credentials,refresh_token
 OAUTH2_SUPPORTED_RESPONSE_TYPES=code
 ```

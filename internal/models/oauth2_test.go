@@ -36,6 +36,65 @@ func TestNewClient(t *testing.T) {
 	assert.Equal(t, client.CreatedAt, client.UpdatedAt)
 }
 
+func TestNewClientWithNewScopes(t *testing.T) {
+	tests := []struct {
+		name       string
+		clientName string
+		scopes     []string
+	}{
+		{
+			name:       "client_with_media_scopes",
+			clientName: "Media Service Client",
+			scopes:     []string{"media:read", "media:write"},
+		},
+		{
+			name:       "client_with_user_scopes",
+			clientName: "User Service Client",
+			scopes:     []string{"user:read", "user:write"},
+		},
+		{
+			name:       "client_with_admin_scope",
+			clientName: "Admin Client",
+			scopes:     []string{"admin"},
+		},
+		{
+			name:       "client_with_mixed_scopes",
+			clientName: "Mixed Service Client",
+			scopes:     []string{"read", "write", "media:read", "user:write", "admin"},
+		},
+		{
+			name:       "client_with_all_new_scopes",
+			clientName: "Full Scope Client",
+			scopes:     []string{"media:read", "media:write", "user:read", "user:write", "admin"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			redirectURIs := []string{testRedirectURL}
+			grantTypes := []string{"authorization_code", "client_credentials"}
+
+			client := models.NewClient(tt.clientName, redirectURIs, tt.scopes, grantTypes)
+
+			require.NotNil(t, client)
+			assert.NotEmpty(t, client.ID)
+			assert.NotEmpty(t, client.Secret)
+			assert.Equal(t, tt.clientName, client.Name)
+			assert.Equal(t, redirectURIs, client.RedirectURIs)
+			assert.Equal(t, tt.scopes, client.Scopes)
+			assert.Equal(t, grantTypes, client.GrantTypes)
+			assert.True(t, client.IsActive)
+			assert.False(t, client.CreatedAt.IsZero())
+			assert.False(t, client.UpdatedAt.IsZero())
+
+			// Test that the client has all expected scopes
+			for _, scope := range tt.scopes {
+				assert.True(t, client.HasScope(scope), "Client should have scope: %s", scope)
+			}
+		})
+	}
+}
+
 func TestNewAuthorizationCode(t *testing.T) {
 	clientID := "test-client"
 	userID := "test-user"
@@ -73,6 +132,74 @@ func TestNewAuthorizationCode(t *testing.T) {
 	assert.False(t, authCode.Used)
 	assert.False(t, authCode.CreatedAt.IsZero())
 	assert.NotNil(t, authCode.Claims)
+}
+
+func TestNewAuthorizationCodeWithNewScopes(t *testing.T) {
+	tests := []struct {
+		name   string
+		scopes []string
+	}{
+		{
+			name:   "auth_code_with_media_scopes",
+			scopes: []string{"media:read", "media:write"},
+		},
+		{
+			name:   "auth_code_with_user_scopes",
+			scopes: []string{"user:read", "user:write"},
+		},
+		{
+			name:   "auth_code_with_admin_scope",
+			scopes: []string{"admin"},
+		},
+		{
+			name:   "auth_code_with_mixed_new_scopes",
+			scopes: []string{"openid", "profile", "media:read", "user:write", "admin"},
+		},
+		{
+			name:   "auth_code_with_all_new_scopes",
+			scopes: []string{"media:read", "media:write", "user:read", "user:write", "admin"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientID := "test-client"
+			userID := "test-user"
+			redirectURI := testRedirectURL
+			codeChallenge := "challenge"
+			codeChallengeMethod := "S256"
+			state := "random-state"
+			nonce := "random-nonce"
+			expiresAt := time.Now().Add(10 * time.Minute)
+
+			authCode := models.NewAuthorizationCode(models.AuthorizationCodeParams{
+				ClientID:            clientID,
+				UserID:              userID,
+				RedirectURI:         redirectURI,
+				Scopes:              tt.scopes,
+				CodeChallenge:       codeChallenge,
+				CodeChallengeMethod: codeChallengeMethod,
+				State:               state,
+				Nonce:               nonce,
+				ExpiresAt:           expiresAt,
+			})
+
+			require.NotNil(t, authCode)
+			assert.NotEmpty(t, authCode.Code)
+			assert.Equal(t, clientID, authCode.ClientID)
+			assert.Equal(t, userID, authCode.UserID)
+			assert.Equal(t, redirectURI, authCode.RedirectURI)
+			assert.Equal(t, tt.scopes, authCode.Scopes)
+			assert.Equal(t, codeChallenge, authCode.CodeChallenge)
+			assert.Equal(t, codeChallengeMethod, authCode.CodeChallengeMethod)
+			assert.Equal(t, state, authCode.State)
+			assert.Equal(t, nonce, authCode.Nonce)
+			assert.Equal(t, expiresAt, authCode.ExpiresAt)
+			assert.False(t, authCode.Used)
+			assert.False(t, authCode.CreatedAt.IsZero())
+			assert.NotNil(t, authCode.Claims)
+		})
+	}
 }
 
 func TestNewSession(t *testing.T) {
@@ -141,7 +268,7 @@ func TestClientValidateRedirectURI(t *testing.T) {
 
 func TestClientHasScope(t *testing.T) {
 	client := &models.Client{
-		Scopes: []string{"read", "write", "admin"},
+		Scopes: []string{"read", "write", "admin", "media:read", "media:write", "user:read", "user:write"},
 	}
 
 	tests := []struct {
@@ -165,6 +292,26 @@ func TestClientHasScope(t *testing.T) {
 			expectValid: true,
 		},
 		{
+			name:        "valid_scope_media_read",
+			scope:       "media:read",
+			expectValid: true,
+		},
+		{
+			name:        "valid_scope_media_write",
+			scope:       "media:write",
+			expectValid: true,
+		},
+		{
+			name:        "valid_scope_user_read",
+			scope:       "user:read",
+			expectValid: true,
+		},
+		{
+			name:        "valid_scope_user_write",
+			scope:       "user:write",
+			expectValid: true,
+		},
+		{
 			name:        "invalid_scope",
 			scope:       "delete",
 			expectValid: false,
@@ -172,6 +319,16 @@ func TestClientHasScope(t *testing.T) {
 		{
 			name:        "empty_scope",
 			scope:       "",
+			expectValid: false,
+		},
+		{
+			name:        "case_sensitive_media_scope",
+			scope:       "Media:Read",
+			expectValid: false,
+		},
+		{
+			name:        "invalid_colon_scope",
+			scope:       "invalid:scope",
 			expectValid: false,
 		},
 	}

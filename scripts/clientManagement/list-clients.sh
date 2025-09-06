@@ -108,31 +108,40 @@ fetch_clients() {
         # Parse client IDs from env file
         local clients_json="[]"
 
+        local client_name=""
         while IFS= read -r line; do
-            if [[ $line =~ ^#[[:space:]](.+)$ ]] && [[ ! $line =~ ^#[[:space:]]OAuth2 ]] && [[ ! $line =~ ^#[[:space:]]Generated ]]; then
-                local client_name="${BASH_REMATCH[1]}"
-            elif [[ $line =~ _CLIENT_ID=\"(.+)\"$ ]]; then
-                local client_id="${BASH_REMATCH[1]}"
-                if [ -n "$client_name" ]; then
-                    # Try to fetch individual client details
-                    local client_response=$(curl -s -f "$AUTH_SERVICE_URL/api/v1/auth/oauth/clients/$client_id" 2>/dev/null || echo "{}")
+            # Skip empty lines
+            if [[ -z "$line" ]]; then
+                continue
+            fi
 
-                    if [ "$client_response" != "{}" ] && echo "$client_response" | jq -e '.id' > /dev/null 2>&1; then
-                        clients_json=$(echo "$clients_json" | jq ". += [$client_response]")
-                    else
-                        # Create a minimal client object if API call fails
-                        clients_json=$(echo "$clients_json" | jq \
-                            --arg name "$client_name" \
-                            --arg id "$client_id" \
-                            '. += [{
-                                id: $id,
-                                name: $name,
-                                grant_types: ["unknown"],
-                                scopes: ["unknown"]
-                            }]')
-                    fi
-                    client_name=""
+            # Check for client name comments
+            if [[ $line =~ ^#\ (.+)$ ]]; then
+                local candidate_name="${BASH_REMATCH[1]}"
+                if [[ ! $candidate_name =~ OAuth2 ]] && [[ ! $candidate_name =~ Generated ]] && [[ ! $candidate_name =~ Auth.Service ]]; then
+                    client_name="$candidate_name"
                 fi
+            # Check for client ID lines
+            elif [[ $line =~ _CLIENT_ID=\"(.+)\"$ ]] && [[ -n "$client_name" ]]; then
+                local client_id="${BASH_REMATCH[1]}"
+                # Try to fetch individual client details
+                local client_response=$(curl -s -f "$AUTH_SERVICE_URL/api/v1/auth/oauth/clients/$client_id" 2>/dev/null || echo "{}")
+
+                if [ "$client_response" != "{}" ] && echo "$client_response" | jq -e '.id' > /dev/null 2>&1; then
+                    clients_json=$(echo "$clients_json" | jq ". += [$client_response]")
+                else
+                    # Create a minimal client object if API call fails
+                    clients_json=$(echo "$clients_json" | jq \
+                        --arg name "$client_name" \
+                        --arg id "$client_id" \
+                        '. += [{
+                            id: $id,
+                            name: $name,
+                            grant_types: ["unknown"],
+                            scopes: ["unknown"]
+                        }]')
+                fi
+                client_name=""
             fi
         done < "$ENV_FILE"
 
@@ -151,7 +160,7 @@ display_table() {
     echo -e "\n${CYAN}Auth Service:${NC} $AUTH_SERVICE_URL"
     echo -e "${CYAN}Total Clients:${NC} $count\n"
 
-    if [ "$count" -eq 0 ]; then
+    if [ -z "$count" ] || [ "$count" -eq 0 ]; then
         print_status "warning" "No clients registered yet"
         echo
         echo "  To register clients, run:"
@@ -169,7 +178,7 @@ display_table() {
 
     # Print each client
     local index=0
-    while [ $index -lt $count ]; do
+    while [ $index -lt "${count:-0}" ]; do
         local client=$(echo "$clients_json" | jq -r ".[$index]")
         local name=$(echo "$client" | jq -r '.name // "N/A"' | cut -c1-24)
         local id=$(echo "$client" | jq -r '.id // "N/A"' | cut -c1-37)
@@ -191,7 +200,7 @@ display_table() {
                 "$scopes"
         fi
 
-        ((index++))
+        index=$((index + 1))
     done
 
     print_section "📝 Client Management Commands"
@@ -218,14 +227,14 @@ display_simple() {
 
     print_header "📋 Registered OAuth2 Clients (Simple View)"
 
-    if [ "$count" -eq 0 ]; then
+    if [ -z "$count" ] || [ "$count" -eq 0 ]; then
         print_status "warning" "No clients registered"
         return
     fi
 
     echo
     local index=0
-    while [ $index -lt $count ]; do
+    while [ $index -lt "${count:-0}" ]; do
         local client=$(echo "$clients_json" | jq -r ".[$index]")
         local name=$(echo "$client" | jq -r '.name // "N/A"')
         local id=$(echo "$client" | jq -r '.id // "N/A"')
@@ -234,7 +243,7 @@ display_simple() {
         echo -e "   ${DIM}ID: $id${NC}"
         echo
 
-        ((index++))
+        index=$((index + 1))
     done
 }
 

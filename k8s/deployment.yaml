@@ -51,7 +51,7 @@ spec:
               path: /api/v1/auth/health/ready
               port: 8080
             initialDelaySeconds: 10
-            periodSeconds: 15
+            periodSeconds: 60
             timeoutSeconds: 5
             failureThreshold: 3
             successThreshold: 1
@@ -60,7 +60,7 @@ spec:
               path: /api/v1/auth/health/live
               port: 8080
             initialDelaySeconds: 30
-            periodSeconds: 30
+            periodSeconds: 120
             timeoutSeconds: 5
             failureThreshold: 3
           startupProbe:
@@ -68,7 +68,7 @@ spec:
               path: /api/v1/auth/health/live
               port: 8080
             initialDelaySeconds: 5
-            periodSeconds: 5
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 12
           resources:

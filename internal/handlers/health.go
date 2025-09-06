@@ -222,8 +222,6 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	start := time.Now()
 
-	h.logger.Debug("Processing health check request")
-
 	// Check all components
 	components := make(map[string]ComponentHealth)
 	overallStatus := StatusHealthy

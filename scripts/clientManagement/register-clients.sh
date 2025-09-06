@@ -44,8 +44,8 @@ FAILED_COUNT=0
 SKIPPED_COUNT=0
 
 # Arrays to store results
-declare -a REGISTERED_CLIENTS
-declare -a FAILED_CLIENTS
+declare -a REGISTERED_CLIENTS=()
+declare -a FAILED_CLIENTS=()
 
 print_separator() {
     local char="${1:-=}"
@@ -173,17 +173,22 @@ register_client() {
     local total="$3"
 
     # Extract client details
-    local name=$(echo "$client_json" | jq -r '.name')
-    local redirect_uris=$(echo "$client_json" | jq -c '.redirect_uris')
-    local scopes=$(echo "$client_json" | jq -c '.scopes')
-    local grant_types=$(echo "$client_json" | jq -c '.grant_types')
+    local name
+    local redirect_uris
+    local scopes
+    local grant_types
+    name=$(echo "$client_json" | jq -r '.name')
+    redirect_uris=$(echo "$client_json" | jq -c '.redirect_uris')
+    scopes=$(echo "$client_json" | jq -c '.scopes')
+    grant_types=$(echo "$client_json" | jq -c '.grant_types')
 
     echo
     echo -e "${BOLD}[$index/$total] Registering: ${CYAN}$name${NC}"
     print_separator "."
 
     # Prepare request body
-    local request_body=$(jq -n \
+    local request_body
+    request_body=$(jq -n \
         --arg name "$name" \
         --argjson redirect_uris "$redirect_uris" \
         --argjson scopes "$scopes" \
@@ -215,8 +220,10 @@ register_client() {
 
     if [ "$http_code" = "201" ] || [ "$http_code" = "200" ]; then
         # Extract credentials
-        local client_id=$(echo "$response_body" | jq -r '.id')
-        local client_secret=$(echo "$response_body" | jq -r '.secret')
+        local client_id
+        local client_secret
+        client_id=$(echo "$response_body" | jq -r '.id')
+        client_secret=$(echo "$response_body" | jq -r '.secret')
 
         if [ -n "$client_id" ] && [ "$client_id" != "null" ]; then
             print_status "ok" "Successfully registered!"
@@ -224,7 +231,8 @@ register_client() {
             echo -e "  ${GREEN}Client Secret:${NC} $client_secret"
 
             # Save to env file
-            local env_name=$(echo "$name" | tr '[:lower:]' '[:upper:]' | tr ' ' '_')
+            local env_name
+            env_name=$(echo "$name" | tr '[:lower:]' '[:upper:]' | tr ' ' '_')
             cat >> "$ENV_FILE" << EOF
 
 # $name
@@ -243,13 +251,15 @@ EOF
         fi
     elif [ "$http_code" = "409" ]; then
         print_status "warning" "Client already exists"
-        local existing_msg=$(echo "$response_body" | jq -r '.error // .message // "Client with this name already exists"')
+        local existing_msg
+        existing_msg=$(echo "$response_body" | jq -r '.error // .message // "Client with this name already exists"')
         echo "  $existing_msg"
         FAILED_CLIENTS+=("$name|Already exists")
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
     else
         print_status "error" "Registration failed (HTTP $http_code)"
-        local error_msg=$(echo "$response_body" | jq -r '.error // .message // "Unknown error"' 2>/dev/null || echo "$response_body")
+        local error_msg
+        error_msg=$(echo "$response_body" | jq -r '.error // .message // "Unknown error"' 2>/dev/null || echo "$response_body")
         echo "  Error: $error_msg"
         FAILED_CLIENTS+=("$name|HTTP $http_code")
         FAILED_COUNT=$((FAILED_COUNT + 1))
@@ -267,7 +277,7 @@ print_summary() {
     echo -e "  ${RED}❌ Failed:${NC}     $FAILED_COUNT"
 
     # Successful registrations table
-    if [ ${#REGISTERED_CLIENTS[@]} -gt 0 ]; then
+    if [[ ${#REGISTERED_CLIENTS[@]} -gt 0 ]]; then
         print_section "✅ Successfully Registered Clients"
         printf "%-40s %s\n" "Client Name" "Client ID"
         print_separator "-"
@@ -278,7 +288,7 @@ print_summary() {
     fi
 
     # Failed registrations table
-    if [ ${#FAILED_CLIENTS[@]} -gt 0 ]; then
+    if [[ ${#FAILED_CLIENTS[@]} -gt 0 ]]; then
         print_section "⚠️  Failed/Skipped Registrations"
         printf "%-40s %s\n" "Client Name" "Reason"
         print_separator "-"
@@ -355,7 +365,8 @@ main() {
     print_section "📦 Loading Client Configurations"
 
     # Count total clients
-    local total_clients=$(jq '. | length' "$CLIENTS_CONFIG")
+    local total_clients
+    total_clients=$(jq '. | length' "$CLIENTS_CONFIG")
     print_status "info" "Found $total_clients client(s) to register"
 
     # Register each client
@@ -372,7 +383,7 @@ main() {
 
     if [ $SUCCESS_COUNT -gt 0 ]; then
         echo -e "${GREEN}${BOLD}🎉 Client registration completed successfully!${NC}"
-    elif [ $SKIPPED_COUNT -eq $total_clients ]; then
+    elif [ $SKIPPED_COUNT -eq "$total_clients" ]; then
         echo -e "${YELLOW}${BOLD}⚠️  All clients already exist.${NC}"
     else
         echo -e "${RED}${BOLD}❌ Client registration completed with errors.${NC}"

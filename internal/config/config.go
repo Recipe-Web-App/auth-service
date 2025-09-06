@@ -145,9 +145,9 @@ type OAuth2Config struct {
 	// PKCERequired determines if PKCE is mandatory for authorization code flow.
 	PKCERequired bool `envconfig:"PKCE_REQUIRED"             default:"true"`
 	// DefaultScopes are the scopes granted when none are specified.
-	DefaultScopes []string `envconfig:"DEFAULT_SCOPES"            default:"openid,profile"`
+	DefaultScopes []string
 	// SupportedScopes are all scopes this server supports.
-	SupportedScopes []string `envconfig:"SUPPORTED_SCOPES"          default:"openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin"`
+	SupportedScopes []string
 	// SupportedGrantTypes are the OAuth2 grant types this server supports.
 	SupportedGrantTypes []string `envconfig:"SUPPORTED_GRANT_TYPES"     default:"authorization_code,client_credentials,refresh_token"`
 	// SupportedResponseTypes are the OAuth2 response types this server supports.
@@ -220,6 +220,13 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := envconfig.Process("", &cfg); err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Initialize OAuth2 scope constants
+	cfg.OAuth2.DefaultScopes = []string{"openid", "profile"}
+	cfg.OAuth2.SupportedScopes = []string{
+		"openid", "profile", "email", "read", "write",
+		"media:read", "media:write", "user:read", "user:write", "admin",
 	}
 
 	if err := cfg.Validate(); err != nil {

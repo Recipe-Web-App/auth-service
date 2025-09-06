@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -332,9 +333,28 @@ func (h *OAuth2Handler) RegisterClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create response with secret included (only during registration)
+	response := struct {
+		ID           string   `json:"id"`
+		Secret       string   `json:"secret"`
+		Name         string   `json:"name"`
+		RedirectURIs []string `json:"redirect_uris"`
+		Scopes       []string `json:"scopes"`
+		GrantTypes   []string `json:"grant_types"`
+		CreatedAt    string   `json:"created_at"`
+	}{
+		ID:           client.ID,
+		Secret:       client.Secret,
+		Name:         client.Name,
+		RedirectURIs: client.RedirectURIs,
+		Scopes:       client.Scopes,
+		GrantTypes:   client.GrantTypes,
+		CreatedAt:    client.CreatedAt.Format(time.RFC3339),
+	}
+
 	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
-	if encodeErr := json.NewEncoder(w).Encode(client); encodeErr != nil {
+	if encodeErr := json.NewEncoder(w).Encode(response); encodeErr != nil {
 		h.logger.WithError(encodeErr).Error("Failed to encode client response")
 	}
 }

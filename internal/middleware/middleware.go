@@ -82,6 +82,11 @@ func (m *Stack) RequestLogger(next http.Handler) http.Handler {
 		// Process request
 		next.ServeHTTP(wrapped, r)
 
+		// Skip logging for health check endpoints
+		if strings.HasPrefix(r.URL.Path, "/api/v1/auth/health") {
+			return
+		}
+
 		// Log request details using correlation ID
 		duration := time.Since(start)
 

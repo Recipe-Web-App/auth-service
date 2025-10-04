@@ -13,26 +13,36 @@ import (
 	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
 )
 
+// PoolGetter is a function that returns the current database connection pool.
+type PoolGetter func() *pgxpool.Pool
+
 // PostgresUserRepository implements UserRepository for PostgreSQL database.
 type PostgresUserRepository struct {
-	pool *pgxpool.Pool
+	getPool PoolGetter
 }
 
 // NewPostgresUserRepository creates a new PostgreSQL user repository.
-func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
+// The poolGetter function allows the repository to always use the current
+// active connection pool, supporting automatic reconnection.
+func NewPostgresUserRepository(poolGetter PoolGetter) *PostgresUserRepository {
 	return &PostgresUserRepository{
-		pool: pool,
+		getPool: poolGetter,
 	}
 }
 
 // CreateUser creates a new user in the database.
 func (r *PostgresUserRepository) CreateUser(ctx context.Context, user *models.UserWithPassword) error {
+	pool := r.getPool()
+	if pool == nil {
+		return errors.New("database connection not available")
+	}
+
 	query := `
 		INSERT INTO recipe_manager.users
 		(user_id, role, username, email, password_hash, full_name, bio, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
-	_, err := r.pool.Exec(ctx, query,
+	_, err := pool.Exec(ctx, query,
 		user.UserID,
 		"USER", // Default role
 		user.Username,
@@ -87,12 +97,17 @@ func (r *PostgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UU
 
 // UpdateUser updates an existing user's information.
 func (r *PostgresUserRepository) UpdateUser(ctx context.Context, user *models.UserWithPassword) error {
+	pool := r.getPool()
+	if pool == nil {
+		return errors.New("database connection not available")
+	}
+
 	query := `
 		UPDATE recipe_manager.users
 		SET email = $2, password_hash = $3, full_name = $4, bio = $5, is_active = $6, updated_at = $7
 		WHERE user_id = $1`
 
-	result, err := r.pool.Exec(ctx, query,
+	result, err := pool.Exec(ctx, query,
 		user.UserID,
 		user.Email,
 		user.PasswordHash,
@@ -115,12 +130,17 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, user *models.Us
 
 // DeleteUser soft-deletes a user by setting is_active to false.
 func (r *PostgresUserRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	pool := r.getPool()
+	if pool == nil {
+		return errors.New("database connection not available")
+	}
+
 	query := `
 		UPDATE recipe_manager.users
 		SET is_active = false, updated_at = $2
 		WHERE user_id = $1`
 
-	result, err := r.pool.Exec(ctx, query, userID, time.Now())
+	result, err := pool.Exec(ctx, query, userID, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -134,10 +154,15 @@ func (r *PostgresUserRepository) DeleteUser(ctx context.Context, userID uuid.UUI
 
 // IsUsernameExists checks if a username already exists.
 func (r *PostgresUserRepository) IsUsernameExists(ctx context.Context, username string) (bool, error) {
+	pool := r.getPool()
+	if pool == nil {
+		return false, errors.New("database connection not available")
+	}
+
 	query := `SELECT EXISTS(SELECT 1 FROM recipe_manager.users WHERE username = $1)`
 
 	var exists bool
-	err := r.pool.QueryRow(ctx, query, username).Scan(&exists)
+	err := pool.QueryRow(ctx, query, username).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check username existence: %w", err)
 	}
@@ -147,10 +172,15 @@ func (r *PostgresUserRepository) IsUsernameExists(ctx context.Context, username 
 
 // IsEmailExists checks if an email already exists.
 func (r *PostgresUserRepository) IsEmailExists(ctx context.Context, email string) (bool, error) {
+	pool := r.getPool()
+	if pool == nil {
+		return false, errors.New("database connection not available")
+	}
+
 	query := `SELECT EXISTS(SELECT 1 FROM recipe_manager.users WHERE email = $1)`
 
 	var exists bool
-	err := r.pool.QueryRow(ctx, query, email).Scan(&exists)
+	err := pool.QueryRow(ctx, query, email).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check email existence: %w", err)
 	}
@@ -164,11 +194,16 @@ func (r *PostgresUserRepository) scanUser(
 	query string,
 	args ...interface{},
 ) (*models.UserWithPassword, error) {
+	pool := r.getPool()
+	if pool == nil {
+		return nil, errors.New("database connection not available")
+	}
+
 	var user models.UserWithPassword
 	var role string
 	var fullName, bio *string
 
-	err := r.pool.QueryRow(ctx, query, args...).Scan(
+	err := pool.QueryRow(ctx, query, args...).Scan(
 		&user.UserID,
 		&role,
 		&user.Username,

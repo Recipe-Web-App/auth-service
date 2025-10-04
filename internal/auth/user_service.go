@@ -68,8 +68,10 @@ func NewUserService(
 	dbMgr *database.Manager,
 ) UserService {
 	var userRepo repository.UserRepository
-	if dbMgr != nil && dbMgr.Pool() != nil {
-		userRepo = repository.NewPostgresUserRepository(dbMgr.Pool())
+	if dbMgr != nil {
+		// Pass a pool getter function that always retrieves the current pool
+		// This ensures the repository uses fresh connections after reconnection
+		userRepo = repository.NewPostgresUserRepository(dbMgr.Pool)
 	}
 
 	return &userService{

@@ -1,8 +1,8 @@
 # OAuth2 Authentication Service
 
-[![CI](https://github.com/your-org/oauth2-auth-service/workflows/CI/badge.svg)](https://github.com/your-org/oauth2-auth-service/actions)
-[![Security](https://github.com/your-org/oauth2-auth-service/workflows/Security/badge.svg)](https://github.com/your-org/oauth2-auth-service/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/your-org/oauth2-auth-service)](https://goreportcard.com/report/github.com/your-org/oauth2-auth-service)
+[![CI](https://github.com/Recipe-Web-App/auth-service/workflows/CI/badge.svg)](https://github.com/Recipe-Web-App/auth-service/actions)
+[![Security](https://github.com/Recipe-Web-App/auth-service/workflows/Security/badge.svg)](https://github.com/Recipe-Web-App/auth-service/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Recipe-Web-App/auth-service)](https://goreportcard.com/report/github.com/Recipe-Web-App/auth-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Enterprise-grade OAuth2 authentication service built in Go, supporting Authorization Code Flow with
@@ -79,8 +79,8 @@ PKCE and Client Credentials Flow for secure microservices authentication.
 1. **Clone and setup:**
 
    ```bash
-   git clone https://github.com/your-org/oauth2-auth-service.git
-   cd oauth2-auth-service
+   git clone https://github.com/Recipe-Web-App/auth-service.git
+   cd auth-service
    cp .env.example .env.local
    ```
 
@@ -245,7 +245,7 @@ curl -X POST https://auth.example.com/oauth2/token \
 
 **Legend**: ✅ Implemented and Production Ready
 
-See [API Reference](docs/API_REFERENCE.md) for detailed documentation and examples.
+See [API Reference](docs/api/API_REFERENCE.md) for detailed documentation and examples.
 
 ## ⚙️ Configuration
 
@@ -488,12 +488,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/oauth2-auth-service/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/oauth2-auth-service/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Recipe-Web-App/auth-service/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Recipe-Web-App/auth-service/discussions)
 - **Documentation**: [docs/](docs/)
 
 ## 🏷️ Version
 
 Current version: **1.0.0**
-
-See [CHANGELOG.md](CHANGELOG.md) for release history.

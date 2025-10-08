@@ -420,37 +420,41 @@ curl -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..." \
 
 ## SDK and Libraries
 
-### Go Client Library
+> **Note**: Official SDK libraries are not yet available. See the [examples/](../../examples/) directory for complete
+> integration examples in Go and Node.js, or refer to the [Integration Guide](../INTEGRATION.md) for detailed
+> implementation instructions.
+
+### Example Go Client Pattern
 
 ```go
-import "github.com/your-org/oauth2-client-go"
+// Example pattern - see examples/client-credentials-flow.go for working implementation
+import "net/http"
 
-client := oauth2client.New(oauth2client.Config{
+type OAuth2Client struct {
+    ClientID     string
+    ClientSecret string
+    TokenURL     string
+}
+
+client := &OAuth2Client{
     ClientID:     "my-client",
     ClientSecret: "my-secret", // pragma: allowlist secret
     TokenURL:     "https://auth.example.com/api/v1/auth/oauth2/token",
-})
-
-token, err := client.ClientCredentials(ctx, "read write")
-if err != nil {
-    log.Fatal(err)
 }
 
-// Use token in API calls
-req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+// See examples/client-credentials-flow.go for complete implementation
 ```
 
-### Node.js Client Library
+### Example Node.js Client Pattern
 
 ```javascript
-const OAuth2Client = require('@your-org/oauth2-client-node');
-
-const client = new OAuth2Client({
-  clientId: 'my-client',
-  clientSecret: 'my-secret', // pragma: allowlist secret
-  tokenUrl: 'https://auth.example.com/api/v1/auth/oauth2/token',
-});
-
-const token = await client.clientCredentials(['read', 'write']);
-console.log('Access Token:', token.accessToken);
+// Example pattern - see examples/client-credentials-flow.js for working implementation
+class OAuth2Client {
+  constructor(clientId, clientSecret, authBaseUrl) {
+    this.clientId = clientId;
+    this.clientSecret = clientSecret;
+    this.authBaseUrl = authBaseUrl;
+  }
+  // See examples/client-credentials-flow.js for complete implementation
+}
 ```

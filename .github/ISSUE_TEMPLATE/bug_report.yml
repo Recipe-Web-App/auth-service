@@ -1,0 +1,147 @@
+---
+name: Bug Report
+description: Report a bug or unexpected behavior in the auth service
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees:
+  - jsamuelsen
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below to help us
+        investigate and fix the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the issue you're experiencing
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Send request to '...'
+        2. With parameters '...'
+        3. Observe error '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what should have happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happened
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - OAuth2 Authorization Flow
+        - OAuth2 Client Credentials Flow
+        - Token Generation/Validation
+        - User Authentication
+        - Session Management
+        - Database (PostgreSQL)
+        - Cache (Redis)
+        - API Endpoints
+        - Middleware (CORS, Rate Limiting, etc.)
+        - Health Checks
+        - Metrics
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical (Service is down/unusable)
+        - High (Major functionality broken)
+        - Medium (Functionality impaired)
+        - Low (Minor issue/inconvenience)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Include relevant log output (please redact sensitive information)
+      render: shell
+      placeholder: Paste relevant logs here
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Information about your deployment environment
+      value: |
+        - Go version:
+        - Deployment: (Docker/Kubernetes/Local)
+        - OS:
+        - PostgreSQL version:
+        - Redis version:
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant configuration (redact secrets!)
+      placeholder: |
+        JWT_ALGORITHM=HS256
+        ENABLE_PKCE=true
+        etc.
+
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security Impact
+      description: Does this bug have security implications?
+      options:
+        - label: This bug may have security implications
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or information about the problem
+      placeholder: Any additional information that might help
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have included all relevant information
+          required: true
+        - label: I have redacted all sensitive information (secrets, tokens, passwords)
+          required: true

@@ -1,0 +1,140 @@
+---
+name: Feature Request
+description: Suggest a new feature or enhancement for the auth service
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees:
+  - jsamuelsen
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please provide as much detail as possible to help us
+        understand and evaluate your request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: A clear description of what the problem is. Ex. I'm always frustrated when [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: A clear description of what you want to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered
+      placeholder: What other approaches could solve this problem?
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component Area
+      description: Which area does this feature relate to?
+      options:
+        - OAuth2 Flows
+        - Token Management
+        - User Management
+        - Client Management
+        - Security Features
+        - API Endpoints
+        - Database/Storage
+        - Caching
+        - Monitoring/Metrics
+        - Configuration
+        - Documentation
+        - CLI Tools
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Critical (Blocking my use case)
+        - High (Would significantly improve my workflow)
+        - Medium (Nice to have)
+        - Low (Minor improvement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your specific use case for this feature
+      placeholder: |
+        I need this feature because...
+        My application does...
+        This would help me...
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-example
+    attributes:
+      label: API Design (Optional)
+      description: If applicable, show what the API might look like
+      render: go
+      placeholder: |
+        // Example API usage
+        client.NewFeature(options)
+
+  - type: checkboxes
+    id: oauth-spec
+    attributes:
+      label: Standards Compliance
+      description: Does this feature relate to OAuth2/OIDC specifications?
+      options:
+        - label: This feature implements a standard OAuth2/OIDC specification
+          required: false
+        - label: This feature extends beyond the OAuth2/OIDC specifications
+          required: false
+
+  - type: textarea
+    id: breaking-changes
+    attributes:
+      label: Breaking Changes
+      description: Would this feature require breaking changes to existing APIs?
+      placeholder: Describe any potential breaking changes
+
+  - type: textarea
+    id: security
+    attributes:
+      label: Security Considerations
+      description: Are there any security implications to consider?
+      placeholder: Describe security aspects of this feature
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, mockups, or examples about the feature request
+      placeholder: Links to similar implementations, diagrams, etc.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: This feature aligns with the project's goals as an OAuth2 auth service
+          required: true
+        - label: I am willing to help implement or test this feature
+          required: false

@@ -320,7 +320,7 @@ make coverage
 make test-integration
 ```
 
-See [Development Guide](docs/DEVELOPMENT.md) for detailed development workflow.
+See [Contributing Guide](.github/CONTRIBUTING.md) for detailed development workflow.
 
 ## 🚢 Deployment
 
@@ -383,7 +383,7 @@ See [Deployment Guide](docs/DEPLOYMENT.md) and [k8s/README.md](k8s/README.md) fo
 
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and components
-- **[Development Guide](docs/DEVELOPMENT.md)** - Development workflow and testing
+- **[Contributing Guide](.github/CONTRIBUTING.md)** - Development workflow and contributing guidelines
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment instructions
 - **[Kubernetes Deployment](k8s/README.md)** - Kubernetes manifests and configuration
 - **[Management Scripts](scripts/containerManagement/README.md)** - Container management automation
@@ -480,7 +480,7 @@ The service exposes Prometheus metrics:
 
 ### Development Setup
 
-See [Development Guide](docs/DEVELOPMENT.md) for detailed setup instructions.
+See [Contributing Guide](.github/CONTRIBUTING.md) for detailed setup instructions.
 
 ## 📄 License
 

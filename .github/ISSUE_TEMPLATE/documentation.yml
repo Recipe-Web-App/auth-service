@@ -1,0 +1,133 @@
+---
+name: Documentation
+description: Report documentation issues or suggest improvements
+title: "[Docs]: "
+labels: ["documentation", "needs-triage"]
+assignees:
+  - jsamuelsen
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve our documentation! Clear documentation makes the project more accessible to everyone.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation issue is this?
+      options:
+        - Missing Documentation
+        - Incorrect/Outdated Information
+        - Unclear/Confusing Explanation
+        - Typo/Grammar
+        - Code Example Issue
+        - API Reference
+        - Tutorial/Guide Needed
+        - Architecture Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the documentation issue?
+      options:
+        - README.md
+        - CLAUDE.md
+        - API Documentation
+        - Code Comments
+        - Configuration Examples
+        - Deployment Guides
+        - Architecture Diagrams
+        - OAuth2 Flow Documentation
+        - Security Best Practices
+        - Troubleshooting Guide
+        - Contributing Guidelines
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: Issue Description
+      description: What is wrong or missing?
+      placeholder: Clearly describe the documentation issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: location-specific
+    attributes:
+      label: Specific Location
+      description: Link or path to the specific section
+      placeholder: |
+        File: README.md
+        Section: "OAuth2 Flows"
+        Line: 42
+        URL: https://github.com/...
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation (if applicable)
+      description: Quote the current text that needs improvement
+      placeholder: Paste the current documentation text here
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested Improvement
+      description: How should it be improved?
+      placeholder: |
+        Provide suggested text, examples, or describe what should be added
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Target Audience
+      description: Who would benefit from this documentation improvement?
+      options:
+        - New Users/Getting Started
+        - Developers Integrating the Service
+        - System Administrators/DevOps
+        - Contributors
+        - Security Auditors
+        - All Users
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Why is this documentation important?
+      placeholder: |
+        - How did this affect you?
+        - What were you trying to accomplish?
+        - What confusion did this cause?
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you like to help?
+      options:
+        - label: I can submit a PR to fix this documentation issue
+          required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm
+      options:
+        - label: I have searched for similar documentation issues
+          required: true
+        - label: The suggested improvement is accurate and helpful
+          required: true

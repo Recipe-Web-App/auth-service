@@ -8,9 +8,8 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "US/Eastern"
     open-pull-requests-limit: 100
-    reviewers:
-      - "jsamuelsen"
     assignees:
       - "jsamuelsen"
     commit-message:
@@ -20,6 +19,23 @@ updates:
     labels:
       - "dependencies"
       - "go"
+    # Group dependency updates to reduce PR noise
+    groups:
+      # Group all patch updates together
+      go-patch-updates:
+        applies-to: version-updates
+        update-types:
+          - "patch"
+      # Group minor updates together
+      go-minor-updates:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+    # Keep major updates individual for careful review
+    # Increase version requirements (best practice for services)
+    versioning-strategy: increase
+    # Auto-rebase pull requests
+    rebase-strategy: auto
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -28,9 +44,8 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "US/Eastern"
     open-pull-requests-limit: 100
-    reviewers:
-      - "jsamuelsen"
     assignees:
       - "jsamuelsen"
     commit-message:
@@ -39,6 +54,12 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    # Group all GitHub Actions updates together
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    rebase-strategy: auto
 
   # Docker
   - package-ecosystem: "docker"
@@ -47,9 +68,8 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
+      timezone: "US/Eastern"
     open-pull-requests-limit: 100
-    reviewers:
-      - "jsamuelsen"
     assignees:
       - "jsamuelsen"
     commit-message:
@@ -58,3 +78,23 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    rebase-strategy: auto
+
+  # Docker Compose
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "US/Eastern"
+    open-pull-requests-limit: 100
+    assignees:
+      - "jsamuelsen"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker-compose"
+    rebase-strategy: auto

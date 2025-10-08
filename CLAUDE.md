@@ -40,6 +40,17 @@ make deps           # Download and tidy Go modules
 make tools          # Install development tools (air, goimports, gosec)
 ```
 
+### Client Management
+
+```bash
+make env-setup               # Create .env.local with secure JWT secret
+make build-client-manager    # Build client-manager CLI tool
+make register-clients        # Register clients via shell script
+make register-clients-cli    # Register clients via CLI (batch mode)
+make register-clients-config # Register clients from configs/clients.json
+make get-token CLIENT_ID=<id> CLIENT_SECRET=<secret>  # Get access token for testing
+```
+
 ### Docker
 
 ```bash
@@ -72,6 +83,7 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 ### Key Packages
 
 - `cmd/server/main.go` - Application entry point with dependency injection
+- `cmd/client-manager/main.go` - CLI tool for OAuth2 client management
 - `internal/auth/` - OAuth2 business logic, client management, and user services
 - `internal/handlers/` - HTTP handlers for OAuth2 endpoints, user auth, and health checks
 - `internal/middleware/` - Security middleware (CORS, rate limiting, logging)
@@ -80,15 +92,18 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 - `internal/repository/` - User data repository interface and PostgreSQL implementation
 - `internal/redis/` - Redis client with fallback memory store
 - `internal/config/` - Environment-based configuration management (includes database config)
+- `internal/startup/` - Client auto-registration on service startup
 - `pkg/logger/` - Enhanced logging with dual output support
 
 ### Configuration
 
-- Environment variables with validation and defaults
-- `.env.local` file for development (automatically loaded)
-- Comprehensive validation including JWT secret length and port ranges
+- Environment variables with validation and defaults (see `.env.example`)
+- `.env.local` file for development (automatically loaded when GO_ENV is not set or is "development")
+- Use `make env-setup` to create `.env.local` with a secure JWT secret
+- Comprehensive validation including JWT secret length (min 32 chars) and port ranges
 - PostgreSQL database configuration (optional - service works without database)
 - Support for TLS/HTTPS when certificate paths provided
+- Client auto-registration via `configs/clients.json` when `CLIENT_AUTO_REGISTER_ENABLED=true`
 
 ### Security Features
 
@@ -121,11 +136,24 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 
 - Uses Go 1.23+ with modules
 - Graceful shutdown support with proper database connection cleanup
-- Health checks with degraded status support (liveness/readiness probes)
+- Health checks with degraded status support:
+  - **healthy**: Both PostgreSQL and Redis available
+  - **degraded**: Redis available, PostgreSQL unavailable (200 status for k8s deployment)
+  - **unhealthy**: Redis unavailable (503 status)
 - Prometheus metrics at `/api/v1/auth/metrics`
-- Sample client automatically created for testing
+- Sample client automatically created for testing (when `CLIENT_AUTO_REGISTER_CREATE_SAMPLE_CLIENT=true`)
 - Database-first user storage with Redis caching for performance
 - Background database health monitoring with automatic reconnection
 - Service startup independent of database availability (graceful degradation)
 - Docker multi-stage builds for production
 - Kubernetes manifests in `k8s/` directory
+- All API routes prefixed with `/api/v1/auth`
+
+### OAuth2 Flows Supported
+
+- **Authorization Code Flow with PKCE** - For web/mobile clients (PKCE is required by default)
+- **Client Credentials Flow** - For service-to-service authentication
+- **Refresh Token Flow** - Token renewal with rotation support
+- **Token Introspection** (RFC 7662) - Token validation endpoint
+- **Token Revocation** (RFC 7009) - Secure token invalidation
+- **OpenID Connect UserInfo** - User profile endpoint

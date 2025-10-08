@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 )
 
 type ClientConfig struct {

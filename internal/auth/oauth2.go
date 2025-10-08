@@ -12,10 +12,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/token"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 )
 
 const tokenFailureErrorMsg = "Failed to generate or store token"

@@ -9,8 +9,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/token"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 )
 
 // IntrospectToken validates and returns information about an access token.

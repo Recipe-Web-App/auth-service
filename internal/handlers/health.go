@@ -11,10 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/constants"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/database"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/constants"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
 )
 
 const (

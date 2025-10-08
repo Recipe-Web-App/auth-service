@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	models "github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
+	models "github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 )
 
 const (

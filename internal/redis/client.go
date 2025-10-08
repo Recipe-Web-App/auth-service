@@ -27,8 +27,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 )
 
 const (

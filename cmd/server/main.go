@@ -16,15 +16,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/auth"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/database"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/handlers"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/middleware"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/startup"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/token"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/pkg/logger"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/auth"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/handlers"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/middleware"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/startup"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/pkg/logger"
 )
 
 func main() {

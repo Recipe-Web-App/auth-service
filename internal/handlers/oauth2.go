@@ -13,10 +13,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/auth"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/constants"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/auth"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/constants"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 )
 
 // OAuth2Handler handles all OAuth2-related HTTP requests.

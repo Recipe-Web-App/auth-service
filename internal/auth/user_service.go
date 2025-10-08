@@ -10,12 +10,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/database"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/redis"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/repository"
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/token"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/repository"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 )
 
 const (

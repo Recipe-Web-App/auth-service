@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	models "github.com/jsamuelsen/recipe-web-app/auth-service/internal/models"
+	models "github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 )
 
 func TestOAuth2ErrorError(t *testing.T) {

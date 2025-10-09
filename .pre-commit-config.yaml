@@ -72,14 +72,6 @@ repos:
               .*\.lock
           )$
 
-  # Commit message format
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.2.0
-    hooks:
-      - id: conventional-pre-commit
-        name: Conventional commit format
-        stages: [commit-msg]
-
   # Docker linting (if Dockerfile exists)
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0
@@ -125,6 +117,28 @@ repos:
         pass_filenames: false
         args: []
 
+  # Conventional commit validation
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [--strict, --verbose]
+
 # Global settings
 fail_fast: false
 default_install_hook_types: [pre-commit, commit-msg]
+
+# pre-commit.ci configuration
+ci:
+  autofix_commit_msg: |
+    chore(pre-commit-ci): auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: 'chore(pre-commit.ci): pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip:
+    # Skip local hooks - these require system binaries not available in pre-commit.ci
+    - kube-score

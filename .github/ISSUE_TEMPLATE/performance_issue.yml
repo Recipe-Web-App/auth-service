@@ -1,0 +1,174 @@
+---
+name: Performance Issue
+description: Report performance degradation or optimization opportunities
+title: "[Performance]: "
+labels: ["performance", "needs-triage"]
+assignees:
+  - jsamuelsen11
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a performance issue! Detailed metrics will help us investigate and improve the service.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Performance Issue Description
+      description: Describe the performance problem you're experiencing
+      placeholder: A clear description of the performance issue
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which component has the performance issue?
+      options:
+        - OAuth2 Flow (Authorization Code)
+        - OAuth2 Flow (Client Credentials)
+        - Token Generation/Validation
+        - User Authentication
+        - Database Queries
+        - Redis Operations
+        - API Response Time
+        - Memory Usage
+        - CPU Usage
+        - Network I/O
+        - Startup Time
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Impact Severity
+      description: How severe is the performance impact?
+      options:
+        - Critical (Service unusable/timing out)
+        - High (Significant degradation affecting users)
+        - Medium (Noticeable slowdown)
+        - Low (Minor optimization opportunity)
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Performance Metrics
+      description: Provide actual performance measurements
+      placeholder: |
+        Response times, throughput, latency, memory usage, etc.
+
+        Example:
+        - Endpoint: POST /api/v1/auth/token
+        - Current response time: 2500ms
+        - Expected response time: <500ms
+        - Requests per second: 10
+        - Memory usage: 2GB
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this performance issue?
+      placeholder: |
+        1. Start service with configuration...
+        2. Send N requests to...
+        3. Measure response time/resource usage
+        4. Observe degradation after...
+    validations:
+      required: true
+
+  - type: textarea
+    id: load
+    attributes:
+      label: Load Characteristics
+      description: Describe the load conditions when this occurs
+      placeholder: |
+        - Number of concurrent users:
+        - Request rate:
+        - Data volume:
+        - Duration before issue appears:
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Information about your deployment environment
+      value: |
+        - Go version:
+        - Deployment: (Docker/Kubernetes/Local)
+        - Instance specs (CPU/RAM):
+        - PostgreSQL version & specs:
+        - Redis version & specs:
+        - OS:
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant configuration settings (redact secrets!)
+      placeholder: |
+        Pool sizes, timeouts, cache settings, etc.
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Data (Optional)
+      description: Include pprof profiles, flame graphs, or other profiling data if available
+      placeholder: |
+        CPU profile, memory profile, goroutine profile, etc.
+        You can attach files or paste links
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Include relevant log entries showing the performance issue
+      render: shell
+      placeholder: Paste relevant logs here (redact sensitive info)
+
+  - type: textarea
+    id: monitoring
+    attributes:
+      label: Monitoring Data
+      description: Prometheus metrics, graphs, or other monitoring data
+      placeholder: |
+        Screenshots of Grafana dashboards, Prometheus queries, etc.
+
+  - type: textarea
+    id: analysis
+    attributes:
+      label: Initial Analysis
+      description: Any analysis you've done or patterns you've noticed
+      placeholder: |
+        Suspected causes, correlations observed, etc.
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround (if any)
+      description: Have you found any temporary workarounds?
+      placeholder: Configuration changes, scaling strategies, etc.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      description: Please confirm
+      options:
+        - label: I have included actual performance measurements
+          required: true
+        - label: I have provided environment and load details
+          required: true
+        - label: I have searched for similar performance issues
+          required: true

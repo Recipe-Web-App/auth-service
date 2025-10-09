@@ -1,0 +1,75 @@
+---
+# PR Labeler Configuration
+# Automatically labels PRs based on changed files
+
+# Dependencies
+dependencies:
+  - go.mod
+  - go.sum
+
+# Documentation
+documentation:
+  - '**/*.md'
+  - docs/**/*
+  - CLAUDE.md
+  - README.md
+
+# GitHub configuration
+github:
+  - .github/**/*
+
+# Workflows
+github-actions:
+  - .github/workflows/**/*
+
+# Docker
+docker:
+  - Dockerfile
+  - docker-compose*.yml
+  - .dockerignore
+
+# Configuration
+configuration:
+  - '**/*.yml'
+  - '**/*.yaml'
+  - '**/*.json'
+  - .env.example
+
+# Source code
+go:
+  - '**/*.go'
+  - cmd/**/*
+  - internal/**/*
+  - pkg/**/*
+
+# Tests
+tests:
+  - '**/*_test.go'
+
+# Database
+database:
+  - internal/database/**/*
+  - internal/repository/**/*
+
+# Auth/OAuth2
+auth:
+  - internal/auth/**/*
+  - internal/token/**/*
+
+# API/Handlers
+api:
+  - internal/handlers/**/*
+
+# Middleware
+middleware:
+  - internal/middleware/**/*
+
+# Scripts
+scripts:
+  - scripts/**/*
+  - '**/*.sh'
+
+# Kubernetes
+kubernetes:
+  - k8s/**/*
+  - '**/*.yaml'

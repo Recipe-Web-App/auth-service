@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jsamuelsen/recipe-web-app/auth-service/internal/config"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 )
 
 const jwtSecret = "this-is-a-very-long-secret-key-for-testing-purposes-123456789" // pragma: allowlist secret

@@ -1,4 +1,4 @@
-module github.com/jsamuelsen/recipe-web-app/auth-service
+module github.com/jsamuelsen11/recipe-web-app/auth-service
 
 go 1.24.0
 

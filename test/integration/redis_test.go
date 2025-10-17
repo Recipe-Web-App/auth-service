@@ -84,10 +84,6 @@ func TestRedisIntegration(t *testing.T) {
 	t.Run("TokenBlacklist", func(t *testing.T) {
 		testTokenBlacklist(ctx, t, store)
 	})
-
-	t.Run("RateLimit", func(t *testing.T) {
-		testRateLimit(ctx, t, store)
-	})
 }
 
 func testClientOperations(ctx context.Context, t *testing.T, store redisClient.Store) {
@@ -292,24 +288,4 @@ func testTokenBlacklist(ctx context.Context, t *testing.T, store redisClient.Sto
 	blacklisted, err = store.IsTokenBlacklisted(ctx, token)
 	require.NoError(t, err)
 	assert.True(t, blacklisted)
-}
-
-func testRateLimit(ctx context.Context, t *testing.T, store redisClient.Store) {
-	key := "test-rate-limit-key"
-	limit := 5
-	window := 1 * time.Minute
-
-	// Test rate limit allows initial requests
-	for i := range limit {
-		allowed, remaining, err := store.CheckRateLimit(ctx, key, limit, window)
-		require.NoError(t, err)
-		assert.True(t, allowed)
-		assert.Equal(t, limit-i-1, remaining)
-	}
-
-	// Test rate limit blocks additional requests
-	allowed, remaining, err := store.CheckRateLimit(ctx, key, limit, window)
-	require.NoError(t, err)
-	assert.False(t, allowed)
-	assert.Equal(t, 0, remaining)
 }

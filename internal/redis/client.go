@@ -164,17 +164,6 @@ type Store interface {
 	// Returns an error if the Redis operation fails.
 	BlacklistToken(ctx context.Context, token string, ttl time.Duration) error
 
-	// SetRateLimit establishes a rate limit counter for a specific key.
-	// The counter expires after the specified window duration.
-	// Returns an error if the Redis operation fails.
-	SetRateLimit(ctx context.Context, key string, limit int, window time.Duration) error
-
-	// CheckRateLimit increments and checks a rate limit counter.
-	// Returns whether the limit is exceeded, remaining count, and any error.
-	// Automatically sets TTL on first increment of a new counter.
-	// The bool return indicates if the request is allowed (true) or rate limited (false).
-	CheckRateLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error)
-
 	// StoreUser persists a user with password in Redis.
 	// The user is stored without TTL and remains until explicitly deleted.
 	// Returns an error if marshaling or Redis operation fails.
@@ -298,6 +287,15 @@ func (c *Client) Ping(ctx context.Context) error {
 		return fmt.Errorf("redis ping failed: %w", status.Err())
 	}
 	return nil
+}
+
+// GetRedisClient returns the underlying go-redis client for advanced operations
+// like rate limiting with redis_rate. Returns nil if not using Redis store.
+//
+// Returns:
+//   - *redis.Client: The underlying go-redis client
+func (c *Client) GetRedisClient() *redis.Client {
+	return c.rdb
 }
 
 // StoreClient persists an OAuth2 client registration in Redis without expiration.
@@ -780,70 +778,6 @@ func (c *Client) BlacklistToken(ctx context.Context, token string, ttl time.Dura
 	return nil
 }
 
-// SetRateLimit establishes a rate limit counter for a specific key.
-// This method initializes a counter with the specified limit value and TTL.
-// The key pattern used is "auth:rate_limit:{key}" to avoid collisions.
-//
-// Note: This method is typically used for testing or manual rate limit setup.
-// In normal operation, CheckRateLimit() handles counter management automatically.
-//
-// Parameters:
-//   - ctx: Context for request cancellation and timeout control
-//   - key: Unique identifier for the rate limit (e.g., user ID, IP address)
-//   - limit: Maximum number of allowed requests
-//   - window: Time window for the rate limit
-//
-// Returns:
-//   - error: Redis operation error, if any
-func (c *Client) SetRateLimit(ctx context.Context, key string, limit int, window time.Duration) error {
-	rateLimitKey := rateLimitKey(key)
-	if err := c.rdb.Set(ctx, rateLimitKey, limit, window).Err(); err != nil {
-		return fmt.Errorf("failed to set rate limit: %w", err)
-	}
-	return nil
-}
-
-// CheckRateLimit increments a rate limit counter and checks if the limit is exceeded.
-// Uses atomic INCR operation for thread-safe counter management.
-// Automatically sets TTL on the first increment of a new counter.
-//
-// The method implements a sliding window rate limiting algorithm:
-//   - On first request: counter = 1, TTL set to window duration
-//   - On subsequent requests: counter incremented atomically
-//   - Returns whether request is allowed and remaining count
-//
-// Parameters:
-//   - ctx: Context for request cancellation and timeout control
-//   - key: Unique identifier for the rate limit (e.g., user ID, IP address)
-//   - limit: Maximum number of allowed requests in the window
-//   - window: Time window for the rate limit
-//
-// Returns:
-//   - bool: true if request is allowed (under limit), false if rate limited
-//   - int: Number of remaining requests (0 if over limit)
-//   - error: Redis operation error, if any
-func (c *Client) CheckRateLimit(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error) {
-	rateLimitKey := rateLimitKey(key)
-
-	current, err := c.rdb.Incr(ctx, rateLimitKey).Result()
-	if err != nil {
-		return false, 0, fmt.Errorf("failed to increment rate limit counter: %w", err)
-	}
-
-	if current == 1 {
-		if expireErr := c.rdb.Expire(ctx, rateLimitKey, window).Err(); expireErr != nil {
-			c.logger.WithError(expireErr).Error("Failed to set TTL on rate limit key")
-		}
-	}
-
-	remaining := limit - int(current)
-	if remaining < 0 {
-		remaining = 0
-	}
-
-	return current <= int64(limit), remaining, nil
-}
-
 // clientKey generates a Redis key for OAuth2 client storage.
 // Uses the pattern "auth:client:{clientID}" to organize client data.
 //
@@ -914,18 +848,6 @@ func sessionKey(sessionID string) string {
 //   - string: Redis key for blacklist storage
 func blacklistKey(token string) string {
 	return fmt.Sprintf("auth:blacklist:%s", token)
-}
-
-// rateLimitKey generates a Redis key for rate limiting counters.
-// Uses the pattern "auth:rate_limit:{key}" to organize rate limit data.
-//
-// Parameters:
-//   - key: Rate limit identifier (e.g., user ID, IP address, endpoint)
-//
-// Returns:
-//   - string: Redis key for rate limit storage
-func rateLimitKey(key string) string {
-	return fmt.Sprintf("auth:rate_limit:%s", key)
 }
 
 // maskToken obscures sensitive token values for safe logging.

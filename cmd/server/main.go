@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/auth"
@@ -153,7 +154,12 @@ func setupServer(
 	userAuthHandler := handlers.NewUserAuthHandler(userService, jwtService, cfg, log)
 
 	// Initialize middleware
-	middlewareStack := middleware.NewStack(cfg, store, log)
+	// Try to get the underlying Redis client for rate limiting
+	var redisClient *goredis.Client
+	if redisStore, ok := store.(*redis.Client); ok {
+		redisClient = redisStore.GetRedisClient()
+	}
+	middlewareStack := middleware.NewStack(cfg, store, redisClient, log)
 
 	// Set up routes
 	router := mux.NewRouter()

@@ -29,7 +29,6 @@ type MemoryStore struct {
 	refreshTokens  map[string]*expiringItem[*models.RefreshToken]
 	sessions       map[string]*expiringItem[*models.Session]
 	blacklist      map[string]*expiringItem[bool]
-	rateLimits     map[string]*expiringItem[int]
 	users          map[string]*models.UserWithPassword // username -> user
 	usersByEmail   map[string]*models.UserWithPassword // email -> user
 	passwordResets map[string]*expiringItem[*models.PasswordResetToken]
@@ -59,7 +58,6 @@ func NewMemoryStore(logger *logrus.Logger) *MemoryStore {
 		refreshTokens:  make(map[string]*expiringItem[*models.RefreshToken]),
 		sessions:       make(map[string]*expiringItem[*models.Session]),
 		blacklist:      make(map[string]*expiringItem[bool]),
-		rateLimits:     make(map[string]*expiringItem[int]),
 		users:          make(map[string]*models.UserWithPassword),
 		usersByEmail:   make(map[string]*models.UserWithPassword),
 		passwordResets: make(map[string]*expiringItem[*models.PasswordResetToken]),
@@ -102,7 +100,6 @@ func (m *MemoryStore) performCleanup() {
 	expired += m.cleanRefreshTokens(now)
 	expired += m.cleanSessions(now)
 	expired += m.cleanBlacklist(now)
-	expired += m.cleanRateLimits(now)
 	expired += m.cleanPasswordResets(now)
 
 	if expired > 0 {
@@ -164,18 +161,6 @@ func (m *MemoryStore) cleanBlacklist(now time.Time) int {
 	for key, item := range m.blacklist {
 		if now.After(item.ExpiresAt) {
 			delete(m.blacklist, key)
-			expired++
-		}
-	}
-	return expired
-}
-
-// cleanRateLimits removes expired rate limit entries.
-func (m *MemoryStore) cleanRateLimits(now time.Time) int {
-	expired := 0
-	for key, item := range m.rateLimits {
-		if now.After(item.ExpiresAt) {
-			delete(m.rateLimits, key)
 			expired++
 		}
 	}
@@ -441,48 +426,6 @@ func (m *MemoryStore) BlacklistToken(_ context.Context, token string, ttl time.D
 	}
 	m.logger.WithField("token", maskToken(token)).Debug("Token blacklisted in memory")
 	return nil
-}
-
-// SetRateLimit sets a rate limit counter with TTL.
-func (m *MemoryStore) SetRateLimit(_ context.Context, key string, limit int, window time.Duration) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.rateLimits[key] = &expiringItem[int]{
-		Data:      limit,
-		ExpiresAt: time.Now().Add(window),
-	}
-	return nil
-}
-
-// CheckRateLimit increments and checks a rate limit counter.
-func (m *MemoryStore) CheckRateLimit(
-	_ context.Context,
-	key string,
-	limit int,
-	window time.Duration,
-) (bool, int, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	item, exists := m.rateLimits[key]
-	if !exists || item.isExpired() {
-		// First request or expired counter
-		m.rateLimits[key] = &expiringItem[int]{
-			Data:      1,
-			ExpiresAt: time.Now().Add(window),
-		}
-		return true, limit - 1, nil
-	}
-
-	// Increment counter
-	item.Data++
-	remaining := limit - item.Data
-	if remaining < 0 {
-		remaining = 0
-	}
-
-	return item.Data <= limit, remaining, nil
 }
 
 // StoreUser stores a user in memory without expiration.

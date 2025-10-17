@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	redis_rate "github.com/go-redis/redis_rate/v10"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/constants"
-	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	redisStore "github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/pkg/logger"
 )
 
@@ -37,17 +39,26 @@ const requestIDKey contextKey = "request_id"
 // Stack holds all middleware dependencies and provides
 // methods to create HTTP middleware handlers.
 type Stack struct {
-	config *config.Config
-	store  redis.Store
-	logger *logrus.Logger
+	config  *config.Config
+	store   redisStore.Store
+	limiter *redis_rate.Limiter
+	logger  *logrus.Logger
 }
 
 // NewStack creates a new middleware stack with the provided dependencies.
-func NewStack(cfg *config.Config, store redis.Store, logger *logrus.Logger) *Stack {
+// The redisClient parameter is optional and only used for rate limiting.
+// If nil, rate limiting will be disabled (useful for MemoryStore fallback).
+func NewStack(cfg *config.Config, store redisStore.Store, redisClient *redis.Client, logger *logrus.Logger) *Stack {
+	var limiter *redis_rate.Limiter
+	if redisClient != nil {
+		limiter = redis_rate.NewLimiter(redisClient)
+	}
+
 	return &Stack{
-		config: cfg,
-		store:  store,
-		logger: logger,
+		config:  cfg,
+		store:   store,
+		limiter: limiter,
+		logger:  logger,
 	}
 }
 
@@ -120,7 +131,7 @@ func (m *Stack) RequestLogger(next http.Handler) http.Handler {
 }
 
 // RateLimit implements Redis-based rate limiting per client IP address.
-// It uses a sliding window algorithm with configurable requests per second and burst limits.
+// It uses a token bucket algorithm with configurable requests per second and burst limits.
 func (m *Stack) RateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -132,16 +143,19 @@ func (m *Stack) RateLimit(next http.Handler) http.Handler {
 			return
 		}
 
-		// Create rate limit key
-		rateLimitKey := "client:" + clientIP
+		// If limiter is not available (e.g., using MemoryStore), allow request
+		if m.limiter == nil {
+			m.logger.Debug("Rate limiter not available, allowing request")
+			next.ServeHTTP(w, r)
+			return
+		}
 
-		// Check rate limit
-		allowed, remaining, err := m.store.CheckRateLimit(
-			ctx,
-			rateLimitKey,
-			m.config.Security.RateLimitRPS,
-			m.config.Security.RateLimitWindow,
-		)
+		// Create rate limit key
+		rateLimitKey := "auth:ratelimit:client:" + clientIP
+
+		// Check rate limit using redis_rate
+		// Use burst limit as the maximum number of tokens
+		result, err := m.limiter.Allow(ctx, rateLimitKey, redis_rate.PerSecond(m.config.Security.RateLimitRPS))
 
 		if err != nil {
 			m.logger.WithError(err).Error("Failed to check rate limit")
@@ -151,18 +165,18 @@ func (m *Stack) RateLimit(next http.Handler) http.Handler {
 		}
 
 		// Set rate limit headers
-		w.Header().Set("X-Ratelimit-Limit", string(rune(m.config.Security.RateLimitRPS)))
-		w.Header().Set("X-Ratelimit-Remaining", string(rune(remaining)))
-		w.Header().Set("X-Ratelimit-Window", m.config.Security.RateLimitWindow.String())
+		w.Header().Set("X-Ratelimit-Limit", strconv.Itoa(result.Limit.Burst))
+		w.Header().Set("X-Ratelimit-Remaining", strconv.Itoa(result.Remaining))
+		w.Header().Set("X-Ratelimit-Reset", strconv.FormatInt(time.Now().Add(result.ResetAfter).Unix(), 10))
 
-		if !allowed {
+		if result.Allowed == 0 {
 			m.logger.WithFields(logrus.Fields{
 				"client_ip": clientIP,
 				"path":      r.URL.Path,
 				"method":    r.Method,
 			}).Warn("Rate limit exceeded")
 
-			w.Header().Set("Retry-After", m.config.Security.RateLimitWindow.String())
+			w.Header().Set("Retry-After", strconv.Itoa(int(result.RetryAfter.Seconds())))
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}

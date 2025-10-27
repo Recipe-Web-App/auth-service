@@ -133,7 +133,7 @@ jobs:
       run: go build -v -ldflags="-w -s" -o bin/auth-service ./cmd/server
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: auth-service-binary
         path: bin/auth-service

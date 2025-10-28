@@ -43,5 +43,14 @@
     ],
     "scopes": ["openid", "profile", "user:read", "user:write", "admin"],
     "grant_types": ["authorization_code", "client_credentials", "refresh_token"]
+  },
+  {
+    "name": "Notification Service",
+    "redirect_uris": [
+      "http://localhost:8000/api/v1/notifications/auth/callback",
+      "http://notification-service.local/api/v1/notifications/auth/callback"
+    ],
+    "scopes": ["read", "write", "user:read"],
+    "grant_types": ["client_credentials"]
   }
 ]

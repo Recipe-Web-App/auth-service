@@ -23,12 +23,16 @@ const (
 // Config represents the complete configuration for the OAuth2 service,
 // aggregating all component-specific configurations.
 type Config struct {
+	// Environment holds environment-specific settings.
+	Environment EnvironmentConfig `envconfig:"ENVIRONMENT"`
 	// Server contains HTTP server configuration including ports, timeouts, and TLS settings.
 	Server ServerConfig `envconfig:"SERVER"`
 	// Redis contains Redis connection and pool configuration.
 	Redis RedisConfig `envconfig:"REDIS"`
 	// Database contains PostgreSQL database configuration.
 	Database DatabaseConfig `envconfig:"POSTGRES"`
+	// AuthServiceClient contains OAuth2 client credentials for the auth service itself.
+	AuthServiceClient ClientConfig `envconfig:"AUTH_SERVICE_CLIENT"`
 	// JWT contains JWT token generation and validation settings.
 	JWT JWTConfig `envconfig:"JWT"`
 	// OAuth2 contains OAuth2 flow-specific configuration.
@@ -39,6 +43,20 @@ type Config struct {
 	Logging LoggingConfig `envconfig:"LOGGING"`
 	// ClientAutoRegister contains client auto-registration configuration.
 	ClientAutoRegister ClientAutoRegisterConfig `envconfig:"CLIENT_AUTO_REGISTER"`
+}
+
+type Environment string
+
+const (
+	Local   Environment = "LOCAL"
+	NonProd Environment = "NONPROD"
+	Prod    Environment = "PROD"
+)
+
+// EnvironmentConfig holds environment-specific settings.
+type EnvironmentConfig struct {
+	// Environment indicates the current running environment (LOCAL, NONPROD, PROD).
+	Environment Environment `envconfig:"ENV" default:"LOCAL"`
 }
 
 // ServerConfig holds HTTP server configuration including network settings,
@@ -118,6 +136,14 @@ type DatabaseConfig struct {
 	HealthCheckPeriod time.Duration `envconfig:"HEALTH_CHECK_PERIOD" default:"30s"`
 	// ConnectTimeout is the timeout for establishing connections.
 	ConnectTimeout time.Duration `envconfig:"CONNECT_TIMEOUT"     default:"10s"`
+}
+
+// ClientConfig contains OAuth2 client credentials configuration.
+type ClientConfig struct {
+	// ID is the OAuth2 client identifier.
+	ClientID string `envconfig:"CLIENT_ID"     default:"auth-service-client-id"`
+	// Secret is the OAuth2 client secret.
+	ClientSecret string `envconfig:"CLIENT_SECRET" default:"auth-service-client-secret"`
 }
 
 // JWTConfig contains JWT token configuration including signing secrets,

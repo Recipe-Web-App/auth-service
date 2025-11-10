@@ -8,6 +8,9 @@ metadata:
   labels:
     app: auth-service
 data:
+  # Environment Configuration
+  ENVIRONMENT: '${ENVIRONMENT}'
+
   # Server Configuration
   SERVER_HOST: '${SERVER_HOST}'
   SERVER_PORT: '${SERVER_PORT}'
@@ -35,6 +38,9 @@ data:
   POSTGRES_SCHEMA: '${POSTGRES_SCHEMA}'
   AUTH_DB_USER: '${AUTH_DB_USER}'
   POSTGRES_SSL_MODE: '${POSTGRES_SSL_MODE}'
+
+  # Auth Service Client Credentials (non-sensitive)
+  AUTH_SERVICE_CLIENT_ID: '${AUTH_SERVICE_CLIENT_ID}'
 
   # JWT Configuration (non-sensitive)
   JWT_ISSUER: '${JWT_ISSUER}'

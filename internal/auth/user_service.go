@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/client/notification"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
@@ -52,12 +53,13 @@ type UserService interface {
 }
 
 type userService struct {
-	config   *config.Config
-	store    redis.Store
-	tokenSvc token.Service
-	logger   *logrus.Logger
-	dbMgr    *database.Manager
-	userRepo repository.UserRepository
+	config             *config.Config
+	store              redis.Store
+	tokenSvc           token.Service
+	logger             *logrus.Logger
+	dbMgr              *database.Manager
+	userRepo           repository.UserRepository
+	notificationClient *notification.Client
 }
 
 func NewUserService(
@@ -66,6 +68,7 @@ func NewUserService(
 	tokenSvc token.Service,
 	logger *logrus.Logger,
 	dbMgr *database.Manager,
+	notificationClient *notification.Client,
 ) UserService {
 	var userRepo repository.UserRepository
 	if dbMgr != nil {
@@ -75,12 +78,13 @@ func NewUserService(
 	}
 
 	return &userService{
-		config:   cfg,
-		store:    store,
-		tokenSvc: tokenSvc,
-		logger:   logger,
-		dbMgr:    dbMgr,
-		userRepo: userRepo,
+		config:             cfg,
+		store:              store,
+		tokenSvc:           tokenSvc,
+		logger:             logger,
+		dbMgr:              dbMgr,
+		userRepo:           userRepo,
+		notificationClient: notificationClient,
 	}
 }
 
@@ -325,6 +329,23 @@ func (s *userService) RegisterUser(
 		"user_id":  user.UserID.String(),
 	}).Info("User registered successfully")
 
+	// Send welcome email notification (fire-and-forget with graceful error handling)
+	if s.notificationClient != nil {
+		go func() {
+			notifReq := &notification.WelcomeRequest{
+				RecipientIDs: []string{user.UserID.String()},
+			}
+			if _, notifErr := s.notificationClient.SendWelcomeEmail(context.Background(), notifReq); notifErr != nil {
+				s.logger.WithFields(logrus.Fields{
+					"user_id": user.UserID.String(),
+					"error":   notifErr,
+				}).Warn("Failed to send welcome email notification")
+			} else {
+				s.logger.WithField("user_id", user.UserID.String()).Info("Welcome email notification sent successfully")
+			}
+		}()
+	}
+
 	return &models.UserRegistrationResponse{
 		User:  user.User,
 		Token: token,
@@ -539,6 +560,29 @@ func (s *userService) RequestPasswordReset(
 		"user_id": user.UserID.String(),
 		"token":   resetToken.Token[:8] + "...",
 	}).Info("Password reset token generated")
+
+	// Send password reset email notification (fire-and-forget with graceful error handling)
+	if s.notificationClient != nil {
+		go func() {
+			notifReq := &notification.PasswordResetRequest{
+				RecipientIDs: []string{user.UserID.String()},
+				ResetToken:   resetToken.Token,
+				ExpiryHours:  1, // Round up from 15 minutes to 1 hour for notification service
+			}
+			if _, notifErr := s.notificationClient.SendPasswordReset(context.Background(), notifReq); notifErr != nil {
+				s.logger.WithFields(logrus.Fields{
+					"user_id": user.UserID.String(),
+					"email":   req.Email,
+					"error":   notifErr,
+				}).Warn("Failed to send password reset email notification")
+			} else {
+				s.logger.WithFields(logrus.Fields{
+					"user_id": user.UserID.String(),
+					"email":   req.Email,
+				}).Info("Password reset email notification sent successfully")
+			}
+		}()
+	}
 
 	return &models.UserPasswordResetResponse{
 		Message:   "Password reset email sent successfully",

@@ -1,11 +1,11 @@
 [
   {
-    "name": "Meal Plan Management Service",
+    "name": "Auth Service",
     "redirect_uris": [
-      "http://localhost:3000/api/v1/meal-plan-management/auth/callback",
-      "https://meal-plan-management.local/api/v1/meal-plan-management/auth/callback"
+      "http://localhost:8080/api/v1/auth/callback",
+      "https://auth-service.local/api/v1/auth/callback"
     ],
-    "scopes": ["read", "write"],
+    "scopes": ["notification:admin"],
     "grant_types": ["client_credentials"]
   },
   {
@@ -16,6 +16,24 @@
     ],
     "scopes": ["openid", "profile", "email", "media:read", "media:write"],
     "grant_types": ["authorization_code", "client_credentials", "refresh_token"]
+  },
+  {
+    "name": "Meal Plan Management Service",
+    "redirect_uris": [
+      "http://localhost:3000/api/v1/meal-plan-management/auth/callback",
+      "https://meal-plan-management.local/api/v1/meal-plan-management/auth/callback"
+    ],
+    "scopes": ["read", "write"],
+    "grant_types": ["client_credentials"]
+  },
+  {
+    "name": "Notification Service",
+    "redirect_uris": [
+      "http://localhost:8000/api/v1/notifications/auth/callback",
+      "http://notification-service.local/api/v1/notifications/auth/callback"
+    ],
+    "scopes": ["read", "write", "user:read"],
+    "grant_types": ["client_credentials"]
   },
   {
     "name": "Recipe Management Service",
@@ -43,14 +61,5 @@
     ],
     "scopes": ["openid", "profile", "user:read", "user:write", "admin"],
     "grant_types": ["authorization_code", "client_credentials", "refresh_token"]
-  },
-  {
-    "name": "Notification Service",
-    "redirect_uris": [
-      "http://localhost:8000/api/v1/notifications/auth/callback",
-      "http://notification-service.local/api/v1/notifications/auth/callback"
-    ],
-    "scopes": ["read", "write", "user:read"],
-    "grant_types": ["client_credentials"]
   }
 ]

@@ -103,14 +103,14 @@ func initializeServices(
 		jwtService := token.NewJWTService(&cfg.JWT)
 		pkceService := token.NewPKCEService()
 
+		// Initialize notification client
+		notificationClient := initializeNotificationClient(cfg, log)
+
 		// Initialize OAuth2 service with memory store
 		authService := auth.NewOAuth2Service(cfg, memoryStore, jwtService, pkceService, log)
 
 		// Initialize user service with memory store and database manager
-		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, dbMgr)
-
-		// Initialize notification client
-		notificationClient := initializeNotificationClient(cfg, log)
+		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, dbMgr, notificationClient)
 
 		return memoryStore, dbMgr, authService, userService, notificationClient
 	}
@@ -121,14 +121,14 @@ func initializeServices(
 	jwtService := token.NewJWTService(&cfg.JWT)
 	pkceService := token.NewPKCEService()
 
+	// Initialize notification client
+	notificationClient := initializeNotificationClient(cfg, log)
+
 	// Initialize OAuth2 service with Redis store
 	authService := auth.NewOAuth2Service(cfg, redisStore, jwtService, pkceService, log)
 
 	// Initialize user service with Redis store and database manager
-	userService := auth.NewUserService(cfg, redisStore, jwtService, log, dbMgr)
-
-	// Initialize notification client
-	notificationClient := initializeNotificationClient(cfg, log)
+	userService := auth.NewUserService(cfg, redisStore, jwtService, log, dbMgr, notificationClient)
 
 	return redisStore, dbMgr, authService, userService, notificationClient
 }

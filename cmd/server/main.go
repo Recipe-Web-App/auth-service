@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -18,6 +19,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/auth"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/client"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/client/notification"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/handlers"
@@ -58,7 +61,7 @@ func main() {
 	}).Info("Service configuration loaded")
 
 	// Initialize dependencies
-	store, dbMgr, authService, userService := initializeServices(cfg, log)
+	store, dbMgr, authService, userService, notificationClient := initializeServices(cfg, log)
 	defer closeStore(store, log)
 	defer closeDatabase(dbMgr, log)
 
@@ -70,7 +73,7 @@ func main() {
 	}
 
 	// Set up HTTP server
-	server := setupServer(cfg, store, dbMgr, authService, userService, log)
+	server := setupServer(cfg, store, dbMgr, authService, userService, notificationClient, log)
 
 	// Start and run server with graceful shutdown
 	runServer(server, cfg, log)
@@ -79,7 +82,7 @@ func main() {
 func initializeServices(
 	cfg *config.Config,
 	log *logrus.Logger,
-) (redis.Store, *database.Manager, auth.Service, auth.UserService) {
+) (redis.Store, *database.Manager, auth.Service, auth.UserService, *notification.Client) {
 	// Initialize database manager (optional)
 	dbMgr, dbErr := database.NewManager(cfg, log)
 	if dbErr != nil {
@@ -106,7 +109,10 @@ func initializeServices(
 		// Initialize user service with memory store and database manager
 		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, dbMgr)
 
-		return memoryStore, dbMgr, authService, userService
+		// Initialize notification client
+		notificationClient := initializeNotificationClient(cfg, log)
+
+		return memoryStore, dbMgr, authService, userService, notificationClient
 	}
 
 	log.Info("Successfully connected to Redis store")
@@ -121,7 +127,45 @@ func initializeServices(
 	// Initialize user service with Redis store and database manager
 	userService := auth.NewUserService(cfg, redisStore, jwtService, log, dbMgr)
 
-	return redisStore, dbMgr, authService, userService
+	// Initialize notification client
+	notificationClient := initializeNotificationClient(cfg, log)
+
+	return redisStore, dbMgr, authService, userService, notificationClient
+}
+
+// initializeNotificationClient creates and configures the notification service client.
+func initializeNotificationClient(cfg *config.Config, log *logrus.Logger) *notification.Client {
+	// Get service URLs based on environment
+	urls := cfg.GetServiceURLs()
+
+	// Initialize token manager for OAuth2 authentication
+	tokenURL := fmt.Sprintf("http://%s/api/v1/auth/token", cfg.ServerAddr())
+	tokenManager := client.NewTokenManager(
+		cfg.AuthServiceClient.ClientID,
+		cfg.AuthServiceClient.ClientSecret,
+		tokenURL,
+		log,
+	)
+
+	// Create base HTTP client
+	const httpTimeoutSeconds = 10
+	baseClient := client.NewBaseClient(
+		urls.NotificationServiceBaseURL,
+		httpTimeoutSeconds*time.Second,
+		log,
+	)
+
+	// Wrap with OAuth2 authentication
+	oauth2Client := client.NewOAuth2Client(baseClient, tokenManager)
+
+	// Create notification client
+	notificationClient := notification.NewClient(oauth2Client, log)
+
+	log.WithFields(logrus.Fields{
+		"base_url": urls.NotificationServiceBaseURL,
+	}).Info("Notification service client initialized")
+
+	return notificationClient
 }
 
 func closeStore(store redis.Store, log *logrus.Logger) {
@@ -143,6 +187,7 @@ func setupServer(
 	dbMgr *database.Manager,
 	authService auth.Service,
 	userService auth.UserService,
+	_ *notification.Client, // Reserved for future handler integration
 	log *logrus.Logger,
 ) *http.Server {
 	// Initialize handlers

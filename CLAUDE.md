@@ -76,9 +76,13 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 
 - **HTTP Layer**: Gorilla Mux router with comprehensive middleware stack
 - **Business Logic**: OAuth2 service supporting Authorization Code Flow with PKCE and Client Credentials Flow
-- **Storage Layer**: PostgreSQL for persistent user data + Redis for sessions/tokens with graceful degradation
+- **Storage Layer**:
+  - PostgreSQL for persistent user data
+  - MySQL for OAuth2 client credentials (primary storage)
+  - Redis for sessions/tokens/client cache with graceful degradation
 - **Token Services**: JWT generation/validation and PKCE implementation
 - **User Management**: Database-first strategy with Redis caching for performance
+- **Client Management**: Hybrid MySQL + Redis architecture with bcrypt secret hashing
 
 ### Key Packages
 
@@ -89,7 +93,11 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 - `internal/middleware/` - Security middleware (CORS, rate limiting, logging)
 - `internal/token/` - JWT and PKCE token services
 - `internal/database/postgres/` - PostgreSQL connection management with health monitoring
-- `internal/repository/` - User data repository interface and PostgreSQL implementation
+- `internal/database/mysql/` - MySQL connection management for OAuth2 client storage
+- `internal/repository/` - Repository interfaces and implementations:
+  - User data repository (PostgreSQL implementation)
+  - Client repository interface (MySQL primary + Redis cache hybrid implementation)
+  - Hybrid client repository with cache-aside pattern
 - `internal/redis/` - Redis client with fallback memory store
 - `internal/config/` - Environment-based configuration management (includes database config)
 - `internal/startup/` - Client auto-registration on service startup
@@ -98,6 +106,7 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 ### Configuration
 
 - Environment variables with validation and defaults (see `.env.example`)
+- MySQL database configuration for OAuth2 client storage (optional - service runs without it)
 - `.env.local` file for development (automatically loaded when GO_ENV is not set or is "development")
 - Use `make env-setup` to create `.env.local` with a secure JWT secret
 - Comprehensive validation including JWT secret length (min 32 chars) and port ranges
@@ -113,6 +122,9 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 - Secure token generation using crypto/rand
 - JWT tokens signed with configurable algorithms (HS256/RS256/etc)
 - Security headers middleware
+- **Client secret hashing with bcrypt** (cost factor 12)
+- **Client secret rotation API** via PUT `/api/v1/auth/oauth/clients/{client_id}/secret`
+- Audit trail tracking (created_by field for all clients)
 
 ### Testing Strategy
 
@@ -125,23 +137,30 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 ### Key Dependencies
 
 - PostgreSQL for persistent user data storage (with pgx driver for connection pooling)
-- Redis for session storage (with in-memory fallback)
+- **MySQL for OAuth2 client credentials storage** (with go-sql-driver/mysql)
+- Redis for session/token storage and client caching (with in-memory fallback)
 - JWT tokens using golang-jwt/jwt library
 - Gorilla Mux for routing
 - Prometheus metrics integration
 - Structured logging with logrus
 - testcontainers for integration testing
+- **bcrypt for secure client secret hashing** (golang.org/x/crypto/bcrypt)
 
 ### Development Notes
 
 - Uses Go 1.23+ with modules
 - Graceful shutdown support with proper database connection cleanup
 - Health checks with degraded status support:
-  - **healthy**: Both PostgreSQL and Redis available
-  - **degraded**: Redis available, PostgreSQL unavailable (200 status for k8s deployment)
+  - **healthy**: Redis + PostgreSQL + MySQL all available
+  - **degraded**: Redis available, but PostgreSQL or MySQL unavailable (200 status for k8s deployment)
   - **unhealthy**: Redis unavailable (503 status)
 - Prometheus metrics at `/api/v1/auth/metrics`
 - Sample client automatically created for testing (when `CLIENT_AUTO_REGISTER_CREATE_SAMPLE_CLIENT=true`)
+- **Hybrid client storage architecture:**
+  - MySQL as primary source of truth for OAuth2 clients
+  - Redis cache layer for performance (cache-aside pattern)
+  - Graceful fallback to Redis-only mode if MySQL unavailable
+  - Client secrets hashed with bcrypt before storage (never stored plaintext)
 - Database-first user storage with Redis caching for performance
 - Background database health monitoring with automatic reconnection
 - Service startup independent of database availability (graceful degradation)

@@ -59,6 +59,10 @@ type Client struct {
 	UpdatedAt time.Time `json:"updated_at"    redis:"updated_at"`
 	// IsActive indicates if the client is currently active.
 	IsActive bool `json:"is_active"     redis:"is_active"`
+	// CreatedBy tracks who or what system created this client (for audit trail).
+	CreatedBy *string `json:"created_by,omitempty" redis:"created_by"`
+	// Metadata provides extensible storage for additional client-specific data.
+	Metadata map[string]interface{} `json:"metadata,omitempty"   redis:"metadata"`
 }
 
 // AuthorizationCode represents a temporary authorization code used in the

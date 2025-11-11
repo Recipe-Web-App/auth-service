@@ -27,6 +27,7 @@ import (
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/handlers"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/middleware"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/repository"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/startup"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/pkg/logger"
@@ -115,8 +116,20 @@ func initializeServices(
 		// Initialize notification client
 		notificationClient := initializeNotificationClient(cfg, log)
 
-		// Initialize OAuth2 service with memory store
-		authService := auth.NewOAuth2Service(cfg, memoryStore, jwtService, pkceService, log)
+		// Create client repository (Redis-only fallback)
+		redisClientRepo := repository.NewRedisClientRepository(memoryStore)
+		var clientRepo repository.ClientRepository = redisClientRepo
+		if mysqlDBMgr != nil && cfg.IsMySQLDatabaseConfigured() {
+			// MySQL is available, create hybrid repository
+			mysqlClientRepo := repository.NewMySQLClientRepository(mysqlDBMgr.DB)
+			clientRepo = repository.NewHybridClientRepository(mysqlClientRepo, redisClientRepo, log)
+			log.Info("Using hybrid client repository (MySQL + Redis cache)")
+		} else {
+			log.Info("Using Redis-only client repository (MySQL not configured)")
+		}
+
+		// Initialize OAuth2 service with memory store and client repository
+		authService := auth.NewOAuth2Service(cfg, memoryStore, clientRepo, jwtService, pkceService, log)
 
 		// Initialize user service with memory store and database manager
 		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, pgDBMgr, notificationClient)
@@ -133,8 +146,20 @@ func initializeServices(
 	// Initialize notification client
 	notificationClient := initializeNotificationClient(cfg, log)
 
-	// Initialize OAuth2 service with Redis store
-	authService := auth.NewOAuth2Service(cfg, redisStore, jwtService, pkceService, log)
+	// Create client repository with hybrid strategy (MySQL primary + Redis cache)
+	redisClientRepo := repository.NewRedisClientRepository(redisStore)
+	var clientRepo repository.ClientRepository = redisClientRepo
+	if mysqlDBMgr != nil && cfg.IsMySQLDatabaseConfigured() {
+		// MySQL is available, create hybrid repository
+		mysqlClientRepo := repository.NewMySQLClientRepository(mysqlDBMgr.DB)
+		clientRepo = repository.NewHybridClientRepository(mysqlClientRepo, redisClientRepo, log)
+		log.Info("Using hybrid client repository (MySQL primary + Redis cache)")
+	} else {
+		log.Info("Using Redis-only client repository (MySQL not configured)")
+	}
+
+	// Initialize OAuth2 service with Redis store and client repository
+	authService := auth.NewOAuth2Service(cfg, redisStore, clientRepo, jwtService, pkceService, log)
 
 	// Initialize user service with Redis store and database manager
 	userService := auth.NewUserService(cfg, redisStore, jwtService, log, pgDBMgr, notificationClient)

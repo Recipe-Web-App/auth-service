@@ -29,8 +29,10 @@ type Config struct {
 	Server ServerConfig `envconfig:"SERVER"`
 	// Redis contains Redis connection and pool configuration.
 	Redis RedisConfig `envconfig:"REDIS"`
-	// Database contains PostgreSQL database configuration.
-	Database DatabaseConfig `envconfig:"POSTGRES"`
+	// PostgresDatabase contains PostgreSQL database configuration.
+	PostgresDatabase DatabaseConfig `envconfig:"POSTGRES"`
+	// MySQLDatabase contains MySQL database configuration.
+	MySQLDatabase MySQLConfig `envconfig:"MYSQL"`
 	// AuthServiceClient contains OAuth2 client credentials for the auth service itself.
 	AuthServiceClient ClientConfig `envconfig:"AUTH_SERVICE_CLIENT"`
 	// JWT contains JWT token generation and validation settings.
@@ -128,6 +130,33 @@ type DatabaseConfig struct {
 	MaxConn int32 `envconfig:"MAX_CONN"            default:"25"`
 	// MinConn is the minimum number of connections in the pool.
 	MinConn int32 `envconfig:"MIN_CONN"            default:"5"`
+	// MaxConnLifetime is the maximum lifetime of a connection.
+	MaxConnLifetime time.Duration `envconfig:"MAX_CONN_LIFETIME"   default:"1h"`
+	// MaxConnIdleTime is the maximum idle time for a connection.
+	MaxConnIdleTime time.Duration `envconfig:"MAX_CONN_IDLE_TIME"  default:"30m"`
+	// HealthCheckPeriod is how often to check database connectivity.
+	HealthCheckPeriod time.Duration `envconfig:"HEALTH_CHECK_PERIOD" default:"30s"`
+	// ConnectTimeout is the timeout for establishing connections.
+	ConnectTimeout time.Duration `envconfig:"CONNECT_TIMEOUT"     default:"10s"`
+}
+
+// MySQLConfig contains MySQL database connection configuration
+// including connection pool settings and health check parameters.
+type MySQLConfig struct {
+	// Host is the MySQL server hostname.
+	Host string `envconfig:"HOST"                default:"localhost"`
+	// Port is the MySQL server port.
+	Port int `envconfig:"PORT"                default:"3306"`
+	// Database is the MySQL database name.
+	Database string `envconfig:"DB"                  default:"client_manager"`
+	// User is the database username (CLIENT_DB_USER from env vars).
+	User string `envconfig:"CLIENT_DB_USER"`
+	// Password is the database password (CLIENT_DB_PASSWORD from env vars).
+	Password string `envconfig:"CLIENT_DB_PASSWORD"`
+	// MaxConn is the maximum number of open connections.
+	MaxConn int `envconfig:"MAX_CONN"            default:"25"`
+	// MinConn is the minimum number of idle connections.
+	MinConn int `envconfig:"MIN_CONN"            default:"5"`
 	// MaxConnLifetime is the maximum lifetime of a connection.
 	MaxConnLifetime time.Duration `envconfig:"MAX_CONN_LIFETIME"   default:"1h"`
 	// MaxConnIdleTime is the maximum idle time for a connection.
@@ -253,6 +282,7 @@ func Load() (*Config, error) {
 	cfg.OAuth2.SupportedScopes = []string{
 		"openid", "profile", "email", "read", "write",
 		"media:read", "media:write", "user:read", "user:write", "admin",
+		"notification:admin", "notification:user",
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -308,19 +338,49 @@ func (c *Config) IsTLSEnabled() bool {
 }
 
 // DatabaseDSN returns the PostgreSQL connection string (Data Source Name).
+//
+// Deprecated: Use PostgresDatabaseDSN instead.
 func (c *Config) DatabaseDSN() string {
+	return c.PostgresDatabaseDSN()
+}
+
+// PostgresDatabaseDSN returns the PostgreSQL connection string (Data Source Name).
+func (c *Config) PostgresDatabaseDSN() string {
 	return fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=%s search_path=%s",
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.Database,
-		c.Database.User,
-		c.Database.Password,
-		c.Database.SSLMode,
-		c.Database.Schema,
+		c.PostgresDatabase.Host,
+		c.PostgresDatabase.Port,
+		c.PostgresDatabase.Database,
+		c.PostgresDatabase.User,
+		c.PostgresDatabase.Password,
+		c.PostgresDatabase.SSLMode,
+		c.PostgresDatabase.Schema,
 	)
 }
 
-// IsDatabaseConfigured returns true if database user and password are configured.
+// MySQLDSN returns the MySQL connection string (Data Source Name).
+func (c *Config) MySQLDSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+		c.MySQLDatabase.User,
+		c.MySQLDatabase.Password,
+		c.MySQLDatabase.Host,
+		c.MySQLDatabase.Port,
+		c.MySQLDatabase.Database,
+	)
+}
+
+// IsDatabaseConfigured returns true if PostgreSQL database user and password are configured.
+//
+// Deprecated: Use IsPostgresDatabaseConfigured instead.
 func (c *Config) IsDatabaseConfigured() bool {
-	return c.Database.User != "" && c.Database.Password != ""
+	return c.IsPostgresDatabaseConfigured()
+}
+
+// IsPostgresDatabaseConfigured returns true if PostgreSQL database user and password are configured.
+func (c *Config) IsPostgresDatabaseConfigured() bool {
+	return c.PostgresDatabase.User != "" && c.PostgresDatabase.Password != ""
+}
+
+// IsMySQLDatabaseConfigured returns true if MySQL database user and password are configured.
+func (c *Config) IsMySQLDatabaseConfigured() bool {
+	return c.MySQLDatabase.User != "" && c.MySQLDatabase.Password != ""
 }

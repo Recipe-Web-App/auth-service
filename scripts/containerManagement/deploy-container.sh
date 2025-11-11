@@ -139,7 +139,7 @@ export JWT_ALGORITHM="${JWT_ALGORITHM:-HS256}"
 # OAuth2 Configuration
 export OAUTH2_PKCE_REQUIRED="${OAUTH2_PKCE_REQUIRED:-true}"
 export OAUTH2_DEFAULT_SCOPES="${OAUTH2_DEFAULT_SCOPES:-openid,profile}"
-export OAUTH2_SUPPORTED_SCOPES="${OAUTH2_SUPPORTED_SCOPES:-openid,profile,email,read,write}"
+export OAUTH2_SUPPORTED_SCOPES="${OAUTH2_SUPPORTED_SCOPES:-openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin,notification:admin,notification:user}"
 export OAUTH2_SUPPORTED_GRANT_TYPES="${OAUTH2_SUPPORTED_GRANT_TYPES:-authorization_code,client_credentials,refresh_token}"
 export OAUTH2_SUPPORTED_RESPONSE_TYPES="${OAUTH2_SUPPORTED_RESPONSE_TYPES:-code}"
 

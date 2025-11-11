@@ -31,20 +31,54 @@ paths:
   /health:
     get:
       summary: Health check endpoint
-      description: Returns the health status of the service and its dependencies
+      description: |
+        Returns the health status of the service and its dependencies including Redis, PostgreSQL, and MySQL.
+
+        Status levels:
+        - **healthy**: All components (Redis, PostgreSQL, MySQL) are operational
+        - **degraded**: Redis is operational, but one or both databases are unavailable
+          (service still functions with reduced capabilities)
+        - **unhealthy**: Redis is unavailable (service cannot function)
+
+        Note: Both PostgreSQL and MySQL are optional. The service can operate without them in degraded mode.
       operationId: healthCheck
       tags:
         - Health
       security: []
       responses:
         '200':
-          description: Service is healthy
+          description: Service is healthy or degraded
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                timestamp: "2025-11-10T00:56:45Z"
+                version: "1.0.0"
+                uptime: "2h15m30s"
+                components:
+                  redis:
+                    status: healthy
+                    message: "Redis is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "2ms"
+                  postgres:
+                    status: healthy
+                    message: "PostgreSQL is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "5ms"
+                  mysql:
+                    status: healthy
+                    message: "MySQL is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "4ms"
+                  configuration:
+                    status: healthy
+                    message: "Configuration is valid"
+                    last_checked: "2025-11-10T00:56:45Z"
         '503':
-          description: Service is unhealthy
+          description: Service is unhealthy (Redis unavailable)
           content:
             application/json:
               schema:
@@ -69,20 +103,43 @@ paths:
   /health/ready:
     get:
       summary: Readiness check endpoint
-      description: Returns whether the service is ready to accept requests
+      description: |
+        Returns whether the service is ready to accept requests.
+
+        The service is considered ready if Redis is available. PostgreSQL and MySQL being unavailable
+        does not affect readiness status, as they are optional components. The service will continue
+        to function in degraded mode for OAuth2 operations even if databases are unavailable.
       operationId: readinessCheck
       tags:
         - Health
       security: []
       responses:
         '200':
-          description: Service is ready
+          description: Service is ready (Redis available)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadinessResponse'
+              example:
+                ready: true
+                timestamp: "2025-11-10T00:56:45Z"
+                components:
+                  redis:
+                    status: healthy
+                    message: "Redis is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "2ms"
+                  postgres:
+                    status: healthy
+                    message: "PostgreSQL is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "5ms"
+                  mysql:
+                    status: degraded
+                    message: "MySQL database not configured (optional)"
+                    last_checked: "2025-11-10T00:56:45Z"
         '503':
-          description: Service is not ready
+          description: Service is not ready (Redis unavailable)
           content:
             application/json:
               schema:
@@ -131,7 +188,9 @@ paths:
                   # HELP auth_component_health_status Health status of service components (1=healthy, 0=unhealthy)
                   # TYPE auth_component_health_status gauge
                   auth_component_health_status{component="redis"} 1
-                  auth_component_health_status{component="database"} 1
+                  auth_component_health_status{component="postgres"} 1
+                  auth_component_health_status{component="mysql"} 1
+                  auth_component_health_status{component="configuration"} 1
 
   /oauth2/authorize:
     get:
@@ -422,6 +481,85 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /oauth/clients/{client_id}/secret:
+    put:
+      summary: Rotate OAuth2 client secret
+      description: |
+        Securely rotates an OAuth2 client's secret credential. The server generates a new
+        cryptographically secure secret automatically. Requires the current secret for authentication.
+
+        **Security Notes:**
+        - New secret is generated server-side using cryptographically secure random (UUID)
+        - The new secret is returned only once and cannot be retrieved again
+        - Generated secrets are 36 characters (UUID format with dashes)
+        - Client secrets are hashed using bcrypt (cost factor 12) before storage
+        - All existing tokens remain valid after secret rotation
+
+        **Use Cases:**
+        - Regular security credential rotation (recommended every 90 days)
+        - Suspected credential compromise
+        - Compliance requirements for credential management
+
+        **Best Practice:**
+        This endpoint follows OAuth2 security best practices by generating secrets server-side,
+        ensuring all credentials have strong, cryptographically secure entropy.
+      operationId: updateClientSecret
+      tags:
+        - OAuth2
+      security: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientSecretRotationRequest'
+            example:
+              current_secret: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Client secret rotated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSecretRotationResponse'
+              example:
+                client_id: "550e8400-e29b-41d4-a716-446655440000"
+                new_secret: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                message: "Client secret rotated successfully. Store this secret securely - it will not be shown again."
+        '400':
+          description: Invalid request (e.g., missing current secret)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "validation_error"
+                message: "current_secret is required"
+                timestamp: "2025-11-10T00:56:45Z"
+        '401':
+          description: Unauthorized (invalid current secret or client not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "unauthorized"
+                message: "Failed to rotate secret: invalid credentials or client not found"  # pragma: allowlist secret
+                timestamp: "2025-11-10T00:56:45Z"
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /oauth2/userinfo:
     get:
       summary: User information endpoint
@@ -690,21 +828,56 @@ components:
       properties:
         status:
           type: string
-          enum: [healthy, unhealthy]
+          enum: [healthy, degraded, unhealthy]
+          description: Overall service health status
         timestamp:
           type: string
           format: date-time
-        checks:
-          type: object
-          properties:
-            redis:
-              type: string
-              enum: [up, down]
         version:
           type: string
+        uptime:
+          type: string
+          description: Service uptime duration
+        components:
+          type: object
+          description: Health status of individual components
+          properties:
+            redis:
+              $ref: '#/components/schemas/ComponentHealth'
+            postgres:
+              $ref: '#/components/schemas/ComponentHealth'
+            mysql:
+              $ref: '#/components/schemas/ComponentHealth'
+            configuration:
+              $ref: '#/components/schemas/ComponentHealth'
+        details:
+          type: object
+          description: Additional health check details
+          additionalProperties: true
       required:
         - status
         - timestamp
+
+    ComponentHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Component health status
+        message:
+          type: string
+          description: Human-readable status message
+        last_checked:
+          type: string
+          format: date-time
+          description: Timestamp of last health check
+        response_time:
+          type: string
+          description: Response time for the health check (e.g., "15ms")
+      required:
+        - status
+        - last_checked
 
     ReadinessResponse:
       type: object
@@ -714,6 +887,16 @@ components:
         timestamp:
           type: string
           format: date-time
+        components:
+          type: object
+          description: Component readiness status
+          properties:
+            redis:
+              $ref: '#/components/schemas/ComponentHealth'
+            postgres:
+              $ref: '#/components/schemas/ComponentHealth'
+            mysql:
+              $ref: '#/components/schemas/ComponentHealth'
       required:
         - ready
         - timestamp
@@ -1023,9 +1206,58 @@ components:
           type: array
           items:
             type: string
+        is_active:
+          type: boolean
+          description: Whether the client is currently active
+        created_at:
+          type: string
+          format: date-time
+          description: When the client was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the client was last updated
+        created_by:
+          type: string
+          nullable: true
+          description: Who or what created this client (e.g., "admin", "auto-registration")
       required:
         - client_id
         - name
+        - is_active
+        - created_at
+        - updated_at
+
+    ClientSecretRotationRequest:
+      type: object
+      properties:
+        current_secret:
+          type: string
+          description: The current client secret for authentication (required to verify ownership)
+          minLength: 1
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      required:
+        - current_secret
+
+    ClientSecretRotationResponse:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: The client identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        new_secret:
+          type: string
+          description: The new server-generated client secret (UUID format, shown only once)
+          example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        message:
+          type: string
+          description: Success message with security warning
+          example: "Client secret rotated successfully. Store this secret securely - it will not be shown again."
+      required:
+        - client_id
+        - new_secret
+        - message
 
     AuthErrorResponse:
       type: object

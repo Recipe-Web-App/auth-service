@@ -15,6 +15,7 @@ import (
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/repository"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 )
 
@@ -40,8 +41,17 @@ type Service interface {
 		scopes []string,
 		grantTypes []string,
 	) (*models.Client, error)
+	RegisterClientWithCreator(
+		ctx context.Context,
+		name string,
+		redirectURIs []string,
+		scopes []string,
+		grantTypes []string,
+		createdBy *string,
+	) (*models.Client, error)
 	GetClient(ctx context.Context, clientID string) (*models.Client, error)
 	ValidateClient(ctx context.Context, clientID, clientSecret string) (*models.Client, error)
+	UpdateClientSecret(ctx context.Context, clientID, currentSecret string) (string, error)
 
 	// PKCE Support
 	ValidatePKCE(codeVerifier, codeChallenge, method string) bool
@@ -50,30 +60,33 @@ type Service interface {
 	ValidateScopes(requestedScopes []string, clientScopes []string) ([]string, error)
 }
 
-// OAuth2Service implements the OAuth2 authentication service with Redis storage
-// and JWT token generation capabilities.
+// OAuth2Service implements the OAuth2 authentication service with hybrid storage
+// (MySQL primary + Redis cache for clients) and JWT token generation capabilities.
 type OAuth2Service struct {
-	config   *config.Config
-	store    redis.Store
-	tokenSvc token.Service
-	pkceSvc  token.PKCEService
-	logger   *logrus.Logger
+	config     *config.Config
+	store      redis.Store                 // Redis store for tokens, codes, sessions
+	clientRepo repository.ClientRepository // Repository for client management (hybrid MySQL+Redis)
+	tokenSvc   token.Service
+	pkceSvc    token.PKCEService
+	logger     *logrus.Logger
 }
 
 // NewOAuth2Service creates a new OAuth2 service instance with the provided dependencies.
 func NewOAuth2Service(
 	cfg *config.Config,
 	store redis.Store,
+	clientRepo repository.ClientRepository,
 	tokenSvc token.Service,
 	pkceSvc token.PKCEService,
 	logger *logrus.Logger,
 ) Service {
 	return &OAuth2Service{
-		config:   cfg,
-		store:    store,
-		tokenSvc: tokenSvc,
-		pkceSvc:  pkceSvc,
-		logger:   logger,
+		config:     cfg,
+		store:      store,
+		clientRepo: clientRepo,
+		tokenSvc:   tokenSvc,
+		pkceSvc:    pkceSvc,
+		logger:     logger,
 	}
 }
 
@@ -97,7 +110,7 @@ func (s *OAuth2Service) Authorize(
 	}
 
 	// Get and validate client
-	client, err := s.store.GetClient(ctx, req.ClientID)
+	client, err := s.clientRepo.GetClientByID(ctx, req.ClientID)
 	if err != nil {
 		return nil, models.NewInvalidClient("Client not found")
 	}
@@ -566,20 +579,10 @@ func (s *OAuth2Service) validateTokenRequest(req *models.TokenRequest) error {
 
 // validateTokenClient validates the client for token requests including secret verification.
 func (s *OAuth2Service) validateTokenClient(ctx context.Context, req *models.TokenRequest) (*models.Client, error) {
-	client, err := s.store.GetClient(ctx, req.ClientID)
+	// Use ValidateClient which now uses the repository and bcrypt verification
+	client, err := s.ValidateClient(ctx, req.ClientID, req.ClientSecret)
 	if err != nil {
-		return nil, models.NewInvalidClient("Client not found")
-	}
-
-	if !client.IsActive {
-		return nil, models.NewInvalidClient("Client is inactive")
-	}
-
-	// Verify client secret for confidential clients
-	if req.ClientSecret != "" {
-		if client.Secret != req.ClientSecret { // pragma: allowlist secret
-			return nil, models.NewInvalidClient("Invalid client credentials")
-		}
+		return nil, err
 	}
 
 	// Check if client supports the requested grant type

@@ -55,6 +55,7 @@ func (h *OAuth2Handler) RegisterRoutes(r *mux.Router) {
 	// Client management endpoints (for development/admin)
 	r.HandleFunc("/oauth/clients", h.RegisterClient).Methods("POST")
 	r.HandleFunc("/oauth/clients/{client_id}", h.GetClient).Methods("GET")
+	r.HandleFunc("/oauth/clients/{client_id}/secret", h.UpdateClientSecret).Methods("PUT")
 }
 
 // Authorize handles OAuth2 authorization requests with PKCE support.
@@ -374,6 +375,61 @@ func (h *OAuth2Handler) GetClient(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
 	if encodeErr := json.NewEncoder(w).Encode(client); encodeErr != nil {
 		h.logger.WithError(encodeErr).Error("Failed to encode client response")
+	}
+}
+
+// UpdateClientSecretRequest represents a client secret rotation request.
+// The new secret is generated server-side for security.
+type UpdateClientSecretRequest struct {
+	CurrentSecret string `json:"current_secret"`
+}
+
+// UpdateClientSecretResponse represents the response from secret rotation.
+type UpdateClientSecretResponse struct {
+	ClientID  string `json:"client_id"`
+	NewSecret string `json:"new_secret"`
+	Message   string `json:"message"`
+}
+
+// UpdateClientSecret handles client secret rotation requests.
+// PUT /api/v1/auth/oauth/clients/{client_id}/secret.
+func (h *OAuth2Handler) UpdateClientSecret(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	vars := mux.Vars(r)
+	clientID := vars["client_id"]
+
+	// Parse request body
+	var req UpdateClientSecretRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate input
+	if req.CurrentSecret == "" {
+		h.writeError(w, "current_secret is required", http.StatusBadRequest)
+		return
+	}
+
+	// Rotate the secret (server generates new secret)
+	newSecret, err := h.authSvc.UpdateClientSecret(ctx, clientID, req.CurrentSecret)
+	if err != nil {
+		h.logger.WithError(err).WithField("client_id", clientID).Warn("Failed to rotate client secret")
+		h.writeError(w, "Failed to rotate secret: invalid credentials or client not found", http.StatusUnauthorized)
+		return
+	}
+
+	// Return success response with new secret (only time it's shown)
+	response := UpdateClientSecretResponse{
+		ClientID:  clientID,
+		NewSecret: newSecret,
+		Message:   "Client secret rotated successfully. Store this secret securely - it will not be shown again.",
+	}
+
+	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
+	w.WriteHeader(http.StatusOK)
+	if encodeErr := json.NewEncoder(w).Encode(response); encodeErr != nil {
+		h.logger.WithError(encodeErr).Error("Failed to encode secret rotation response")
 	}
 }
 

@@ -22,10 +22,12 @@ import (
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/client"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/client/notification"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database/mysql"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database/postgres"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/handlers"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/middleware"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/repository"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/startup"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/pkg/logger"
@@ -61,9 +63,10 @@ func main() {
 	}).Info("Service configuration loaded")
 
 	// Initialize dependencies
-	store, dbMgr, authService, userService, notificationClient := initializeServices(cfg, log)
+	store, pgDBMgr, mysqlDBMgr, authService, userService, notificationClient := initializeServices(cfg, log)
 	defer closeStore(store, log)
-	defer closeDatabase(dbMgr, log)
+	defer closeDatabase(pgDBMgr, "PostgreSQL", log)
+	defer closeDatabase(mysqlDBMgr, "MySQL", log)
 
 	// Initialize client registration service and register clients
 	clientRegSvc := startup.NewClientRegistrationService(cfg, authService, log)
@@ -73,7 +76,7 @@ func main() {
 	}
 
 	// Set up HTTP server
-	server := setupServer(cfg, store, dbMgr, authService, userService, notificationClient, log)
+	server := setupServer(cfg, store, pgDBMgr, mysqlDBMgr, authService, userService, notificationClient, log)
 
 	// Start and run server with graceful shutdown
 	runServer(server, cfg, log)
@@ -82,12 +85,19 @@ func main() {
 func initializeServices(
 	cfg *config.Config,
 	log *logrus.Logger,
-) (redis.Store, *database.Manager, auth.Service, auth.UserService, *notification.Client) {
-	// Initialize database manager (optional)
-	dbMgr, dbErr := database.NewManager(cfg, log)
-	if dbErr != nil {
-		log.WithError(dbErr).Error("Failed to initialize database manager")
-		dbMgr = nil
+) (redis.Store, *postgres.Manager, *mysql.Manager, auth.Service, auth.UserService, *notification.Client) {
+	// Initialize PostgreSQL database manager (optional)
+	pgDBMgr, pgErr := postgres.NewManager(cfg, log)
+	if pgErr != nil {
+		log.WithError(pgErr).Error("Failed to initialize PostgreSQL database manager")
+		pgDBMgr = nil
+	}
+
+	// Initialize MySQL database manager (optional)
+	mysqlDBMgr, mysqlErr := mysql.NewManager(cfg, log)
+	if mysqlErr != nil {
+		log.WithError(mysqlErr).Error("Failed to initialize MySQL database manager")
+		mysqlDBMgr = nil
 	}
 
 	// Try to initialize Redis store first
@@ -106,13 +116,25 @@ func initializeServices(
 		// Initialize notification client
 		notificationClient := initializeNotificationClient(cfg, log)
 
-		// Initialize OAuth2 service with memory store
-		authService := auth.NewOAuth2Service(cfg, memoryStore, jwtService, pkceService, log)
+		// Create client repository (Redis-only fallback)
+		redisClientRepo := repository.NewRedisClientRepository(memoryStore)
+		var clientRepo repository.ClientRepository = redisClientRepo
+		if mysqlDBMgr != nil && cfg.IsMySQLDatabaseConfigured() {
+			// MySQL is available, create hybrid repository
+			mysqlClientRepo := repository.NewMySQLClientRepository(mysqlDBMgr.DB)
+			clientRepo = repository.NewHybridClientRepository(mysqlClientRepo, redisClientRepo, log)
+			log.Info("Using hybrid client repository (MySQL + Redis cache)")
+		} else {
+			log.Info("Using Redis-only client repository (MySQL not configured)")
+		}
+
+		// Initialize OAuth2 service with memory store and client repository
+		authService := auth.NewOAuth2Service(cfg, memoryStore, clientRepo, jwtService, pkceService, log)
 
 		// Initialize user service with memory store and database manager
-		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, dbMgr, notificationClient)
+		userService := auth.NewUserService(cfg, memoryStore, jwtService, log, pgDBMgr, notificationClient)
 
-		return memoryStore, dbMgr, authService, userService, notificationClient
+		return memoryStore, pgDBMgr, mysqlDBMgr, authService, userService, notificationClient
 	}
 
 	log.Info("Successfully connected to Redis store")
@@ -124,13 +146,25 @@ func initializeServices(
 	// Initialize notification client
 	notificationClient := initializeNotificationClient(cfg, log)
 
-	// Initialize OAuth2 service with Redis store
-	authService := auth.NewOAuth2Service(cfg, redisStore, jwtService, pkceService, log)
+	// Create client repository with hybrid strategy (MySQL primary + Redis cache)
+	redisClientRepo := repository.NewRedisClientRepository(redisStore)
+	var clientRepo repository.ClientRepository = redisClientRepo
+	if mysqlDBMgr != nil && cfg.IsMySQLDatabaseConfigured() {
+		// MySQL is available, create hybrid repository
+		mysqlClientRepo := repository.NewMySQLClientRepository(mysqlDBMgr.DB)
+		clientRepo = repository.NewHybridClientRepository(mysqlClientRepo, redisClientRepo, log)
+		log.Info("Using hybrid client repository (MySQL primary + Redis cache)")
+	} else {
+		log.Info("Using Redis-only client repository (MySQL not configured)")
+	}
+
+	// Initialize OAuth2 service with Redis store and client repository
+	authService := auth.NewOAuth2Service(cfg, redisStore, clientRepo, jwtService, pkceService, log)
 
 	// Initialize user service with Redis store and database manager
-	userService := auth.NewUserService(cfg, redisStore, jwtService, log, dbMgr, notificationClient)
+	userService := auth.NewUserService(cfg, redisStore, jwtService, log, pgDBMgr, notificationClient)
 
-	return redisStore, dbMgr, authService, userService, notificationClient
+	return redisStore, pgDBMgr, mysqlDBMgr, authService, userService, notificationClient
 }
 
 // initializeNotificationClient creates and configures the notification service client.
@@ -174,17 +208,18 @@ func closeStore(store redis.Store, log *logrus.Logger) {
 	}
 }
 
-func closeDatabase(dbMgr *database.Manager, log *logrus.Logger) {
+func closeDatabase(dbMgr interface{ Close() }, dbName string, log *logrus.Logger) {
 	if dbMgr != nil {
 		dbMgr.Close()
-		log.Info("Database connections closed")
+		log.Infof("%s database connections closed", dbName)
 	}
 }
 
 func setupServer(
 	cfg *config.Config,
 	store redis.Store,
-	dbMgr *database.Manager,
+	pgDBMgr *postgres.Manager,
+	mysqlDBMgr *mysql.Manager,
 	authService auth.Service,
 	userService auth.UserService,
 	_ *notification.Client, // Reserved for future handler integration
@@ -192,7 +227,7 @@ func setupServer(
 ) *http.Server {
 	// Initialize handlers
 	oauth2Handler := handlers.NewOAuth2Handler(authService, cfg, log)
-	healthHandler := handlers.NewHealthHandler(cfg, store, dbMgr, log)
+	healthHandler := handlers.NewHealthHandler(cfg, store, pgDBMgr, mysqlDBMgr, log)
 
 	// Initialize token service for user auth handler
 	jwtService := token.NewJWTService(&cfg.JWT)

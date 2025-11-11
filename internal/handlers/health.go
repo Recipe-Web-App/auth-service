@@ -13,7 +13,8 @@ import (
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/constants"
-	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database/mysql"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database/postgres"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
 )
 
@@ -26,12 +27,13 @@ const (
 
 // HealthHandler provides health check and monitoring endpoints.
 type HealthHandler struct {
-	config    *config.Config
-	store     redis.Store
-	dbMgr     *database.Manager
-	logger    *logrus.Logger
-	metrics   *Metrics
-	startTime time.Time
+	config     *config.Config
+	store      redis.Store
+	pgDBMgr    *postgres.Manager
+	mysqlDBMgr *mysql.Manager
+	logger     *logrus.Logger
+	metrics    *Metrics
+	startTime  time.Time
 }
 
 // HealthStatus represents the health status of a component.
@@ -97,7 +99,8 @@ type Metrics struct {
 func NewHealthHandler(
 	cfg *config.Config,
 	store redis.Store,
-	dbMgr *database.Manager,
+	pgDBMgr *postgres.Manager,
+	mysqlDBMgr *mysql.Manager,
 	logger *logrus.Logger,
 ) *HealthHandler {
 	metrics := NewMetrics()
@@ -116,12 +119,13 @@ func NewHealthHandler(
 	)
 
 	return &HealthHandler{
-		config:    cfg,
-		store:     store,
-		dbMgr:     dbMgr,
-		logger:    logger,
-		metrics:   metrics,
-		startTime: time.Now(),
+		config:     cfg,
+		store:      store,
+		pgDBMgr:    pgDBMgr,
+		mysqlDBMgr: mysqlDBMgr,
+		logger:     logger,
+		metrics:    metrics,
+		startTime:  time.Now(),
 	}
 }
 
@@ -233,10 +237,17 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		overallStatus = StatusUnhealthy
 	}
 
-	// Check database (optional, degrades service when unavailable)
-	databaseHealth := h.checkDatabase(ctx)
-	components["database"] = databaseHealth
-	if databaseHealth.Status != StatusHealthy && overallStatus == StatusHealthy {
+	// Check PostgreSQL database (optional, degrades service when unavailable)
+	postgresHealth := h.checkPostgresDatabase(ctx)
+	components["postgres"] = postgresHealth
+	if postgresHealth.Status != StatusHealthy && overallStatus == StatusHealthy {
+		overallStatus = StatusDegraded
+	}
+
+	// Check MySQL database (optional, degrades service when unavailable)
+	mysqlHealth := h.checkMySQLDatabase(ctx)
+	components["mysql"] = mysqlHealth
+	if mysqlHealth.Status != StatusHealthy && overallStatus == StatusHealthy {
 		overallStatus = StatusDegraded
 	}
 
@@ -331,10 +342,15 @@ func (h *HealthHandler) Readiness(w http.ResponseWriter, r *http.Request) {
 		ready = false
 	}
 
-	// Check database connectivity (optional - service can run without it)
-	databaseHealth := h.checkDatabase(ctx)
-	components["database"] = databaseHealth
-	// Database being down doesn't affect readiness, only degrades functionality
+	// Check PostgreSQL database connectivity (optional - service can run without it)
+	postgresHealth := h.checkPostgresDatabase(ctx)
+	components["postgres"] = postgresHealth
+	// PostgreSQL being down doesn't affect readiness, only degrades functionality
+
+	// Check MySQL database connectivity (optional - service can run without it)
+	mysqlHealth := h.checkMySQLDatabase(ctx)
+	components["mysql"] = mysqlHealth
+	// MySQL being down doesn't affect readiness, only degrades functionality
 
 	// Update metrics
 	statusLabel := "ready"
@@ -409,15 +425,25 @@ func (h *HealthHandler) checkStorage(ctx context.Context) ComponentHealth {
 	}
 }
 
-// checkDatabase checks PostgreSQL database connectivity.
-func (h *HealthHandler) checkDatabase(ctx context.Context) ComponentHealth {
+// databaseManager defines the interface for database health checks.
+type databaseManager interface {
+	Ping(ctx context.Context) error
+	IsAvailable() bool
+}
+
+// checkDatabaseHealth performs a generic health check on a database manager.
+func (h *HealthHandler) checkDatabaseHealth(
+	ctx context.Context,
+	mgr databaseManager,
+	dbName string,
+) ComponentHealth {
 	start := time.Now()
 
 	// If database manager is not configured, return healthy (not required)
-	if h.dbMgr == nil {
+	if mgr == nil {
 		return ComponentHealth{
 			Status:      StatusHealthy,
-			Message:     "Database not configured (optional)",
+			Message:     dbName + " database not configured (optional)",
 			LastChecked: time.Now(),
 		}
 	}
@@ -426,24 +452,24 @@ func (h *HealthHandler) checkDatabase(ctx context.Context) ComponentHealth {
 	checkCtx, cancel := context.WithTimeout(ctx, HealthCheckTimeout)
 	defer cancel()
 
-	err := h.dbMgr.Ping(checkCtx)
+	err := mgr.Ping(checkCtx)
 	duration := time.Since(start)
 
 	if err != nil {
-		h.logger.WithError(err).Debug("Database health check failed")
+		h.logger.WithError(err).Debugf("%s database health check failed", dbName)
 		return ComponentHealth{
 			Status:       StatusUnhealthy,
-			Message:      "PostgreSQL connection failed: " + err.Error(),
+			Message:      dbName + " connection failed: " + err.Error(),
 			LastChecked:  time.Now(),
 			ResponseTime: duration.String(),
 		}
 	}
 
 	// Check if database is marked as available by the manager
-	if !h.dbMgr.IsAvailable() {
+	if !mgr.IsAvailable() {
 		return ComponentHealth{
 			Status:       StatusUnhealthy,
-			Message:      "Database marked as unavailable",
+			Message:      dbName + " database marked as unavailable",
 			LastChecked:  time.Now(),
 			ResponseTime: duration.String(),
 		}
@@ -451,11 +477,11 @@ func (h *HealthHandler) checkDatabase(ctx context.Context) ComponentHealth {
 
 	// Check response time
 	status := StatusHealthy
-	message := "PostgreSQL is healthy"
+	message := dbName + " is healthy"
 
 	if duration > 2*time.Second {
 		status = StatusDegraded
-		message = "PostgreSQL response time is slow"
+		message = dbName + " response time is slow"
 	}
 
 	return ComponentHealth{
@@ -464,6 +490,16 @@ func (h *HealthHandler) checkDatabase(ctx context.Context) ComponentHealth {
 		LastChecked:  time.Now(),
 		ResponseTime: duration.String(),
 	}
+}
+
+// checkPostgresDatabase checks PostgreSQL database connectivity.
+func (h *HealthHandler) checkPostgresDatabase(ctx context.Context) ComponentHealth {
+	return h.checkDatabaseHealth(ctx, h.pgDBMgr, "PostgreSQL")
+}
+
+// checkMySQLDatabase checks MySQL database connectivity.
+func (h *HealthHandler) checkMySQLDatabase(ctx context.Context) ComponentHealth {
+	return h.checkDatabaseHealth(ctx, h.mysqlDBMgr, "MySQL")
 }
 
 // getStorageType determines the type of storage backend being used.

@@ -68,12 +68,14 @@ func (crs *ClientRegistrationService) RegisterClients(ctx context.Context) error
 
 // createSampleClient creates the default sample client for testing.
 func (crs *ClientRegistrationService) createSampleClient(ctx context.Context) error {
-	sampleClient, err := crs.authSvc.RegisterClient(
+	createdBy := "auto-registration-sample"
+	sampleClient, err := crs.authSvc.RegisterClientWithCreator(
 		ctx,
 		"Sample Client",
 		[]string{"http://localhost:3000/callback", "http://localhost:8080/callback"},
 		[]string{"openid", "profile", "email", "read", "write"},
 		[]string{"authorization_code", "client_credentials", "refresh_token"},
+		&createdBy,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create sample client: %w", err)
@@ -82,6 +84,7 @@ func (crs *ClientRegistrationService) createSampleClient(ctx context.Context) er
 	crs.logger.WithFields(logrus.Fields{
 		"client_id":     sampleClient.ID,
 		"client_secret": sampleClient.Secret,
+		"created_by":    createdBy,
 	}).Info("Sample client created for testing")
 
 	return nil
@@ -174,13 +177,15 @@ func (crs *ClientRegistrationService) registerFromConfig(ctx context.Context) er
 	}).Info("Auto-registering clients from config file")
 
 	// Register each client
+	createdBy := "auto-registration-config"
 	for i, clientConfig := range clients {
-		client, regErr := crs.authSvc.RegisterClient(
+		client, regErr := crs.authSvc.RegisterClientWithCreator(
 			ctx,
 			clientConfig.Name,
 			clientConfig.RedirectURIs,
 			clientConfig.Scopes,
 			clientConfig.GrantTypes,
+			&createdBy,
 		)
 		if regErr != nil {
 			crs.logger.WithFields(logrus.Fields{
@@ -194,6 +199,7 @@ func (crs *ClientRegistrationService) registerFromConfig(ctx context.Context) er
 			"client_id":     client.ID,
 			"client_secret": client.Secret,
 			"client_name":   client.Name,
+			"created_by":    createdBy,
 			"index":         i + 1,
 			"total":         len(clients),
 		}).Info("Client registered from config")

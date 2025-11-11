@@ -135,25 +135,49 @@ Before using these scripts, ensure you have the following tools installed:
 ## Environment Variables
 
 The deployment script looks for a `.env.prod` file in the project root to load environment variables.
-Create this file with your production environment variables if needed.
+Create this file with your production **connection data and secrets only**.
 
 Example `.env.prod`:
 
 ```bash
-# Required variables
-JWT_SECRET="your-jwt-secret-key-minimum-32-characters-long" # pragma: allowlist secret
-REDIS_PASSWORD="your-redis-password" # pragma: allowlist secret
+# Environment - determines which YAML config to load
+ENVIRONMENT="PROD"
 
-# Optional variables with examples
-GO_ENV="production"
-SECURITY_ALLOWED_ORIGINS="https://yourdomain.com,https://api.yourdomain.com"
-SECURITY_RATE_LIMIT_RPS="100"
-SECURITY_RATE_LIMIT_BURST="200"
-OAUTH2_PKCE_REQUIRED="true"
-OAUTH2_DEFAULT_SCOPES="openid,profile"
-LOGGING_LEVEL="info"
-LOGGING_FORMAT="json"
+# Server connection
+SERVER_HOST="0.0.0.0"
+SERVER_PORT="8080"
+
+# JWT Secret (REQUIRED)
+JWT_SECRET="your-jwt-secret-key-minimum-32-characters-long" # pragma: allowlist secret
+
+# Redis connection
+REDIS_URL="redis://redis-service:6379"
+REDIS_PASSWORD="your-redis-password" # pragma: allowlist secret
+REDIS_DB="0"
+
+# PostgreSQL connection (optional)
+POSTGRES_HOST="postgres-service"
+POSTGRES_PORT="5432"
+POSTGRES_DB="recipe_database"
+POSTGRES_SCHEMA="recipe_manager"
+AUTH_DB_USER="auth_user"
+AUTH_DB_PASSWORD="your-db-password"  # pragma: allowlist secret
+
+# MySQL connection (optional)
+MYSQL_HOST="mysql-service"
+MYSQL_PORT="3306"
+MYSQL_DB="client_manager"
+MYSQL_CLIENT_DB_USER="client_user"
+MYSQL_CLIENT_DB_PASSWORD="your-mysql-password"  # pragma: allowlist secret
+
+# Auth service client credentials
+AUTH_SERVICE_CLIENT_ID="auth-service-client-id"
+AUTH_SERVICE_CLIENT_SECRET="your-client-secret"  # pragma: allowlist secret
 ```
+
+**Note:** Operational settings (timeouts, pool sizes, rate limits, CORS origins, OAuth2 scopes, logging config)
+are now configured in `configs/prod.yaml`, not environment variables. The `ENVIRONMENT` variable determines which
+YAML config file to load.
 
 ## Configuration
 

@@ -123,4 +123,15 @@ make build-client-manager      # Build the CLI tool
 7. **Health status shows "degraded"** when database is down but service remains functional
 8. **User management features** (register, login, password reset) require PostgreSQL to be available
 
+## 📝 Configuration Note
+
+The service uses a **hybrid configuration approach**:
+
+- **`.env.local`** - Connection data and secrets (database hosts, passwords, JWT secret)
+- **`configs/*.yaml`** - Operational settings (timeouts, pool sizes, rate limits, OAuth2 scopes, logging)
+
+The `.env.local` file contains only connection information and secrets, while operational settings are managed
+in YAML files (`configs/defaults.yaml`, `configs/local.yaml`, etc.). The `ENVIRONMENT` variable in `.env.local`
+determines which YAML config to load.
+
 That's it! You now have OAuth2 client credentials for all your backend services. 🎉

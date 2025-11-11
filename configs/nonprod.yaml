@@ -1,0 +1,17 @@
+# Non-Production Environment Configuration Overrides
+# These values override defaults.yaml for NONPROD environment
+
+# Security - configure specific origins for non-prod
+security:
+  allowed_origins:
+    - http://notification-service.notification.svc.cluster.local:8000
+    - http://localhost:3000
+    - http://localhost:8080
+
+# Logging - debug level for non-prod with dual output
+logging:
+  level: debug
+  enable_dual_output: true
+  console_format: text
+  file_format: json
+  file_path: /app/logs/app.log

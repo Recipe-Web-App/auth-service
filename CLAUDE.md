@@ -105,14 +105,28 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 
 ### Configuration
 
-- Environment variables with validation and defaults (see `.env.example`)
-- MySQL database configuration for OAuth2 client storage (optional - service runs without it)
+**Hybrid configuration approach** separating connection data from operational settings:
+
+- **Environment variables** (`.env.local`, `.env.prod`) - Connection data and secrets only (see `.env.example`)
+  - Server connection (host, port)
+  - JWT secret (REQUIRED - minimum 32 characters)
+  - Redis connection (URL, password, database)
+  - PostgreSQL connection (optional - host, port, database, credentials)
+  - MySQL connection (optional - host, port, database, credentials)
+  - Auth service client credentials
+  - `ENVIRONMENT` variable determines which YAML config to load (LOCAL, NONPROD, PROD)
+- **YAML configuration files** (`configs/*.yaml`) - Operational settings (committed to repository)
+  - `configs/defaults.yaml` - Base configuration for all environments
+  - `configs/local.yaml` - Local development overrides
+  - `configs/nonprod.yaml` - Non-production overrides
+  - `configs/prod.yaml` - Production overrides
+  - Settings: timeouts, pool sizes, JWT expiry, OAuth2 scopes, rate limits, CORS origins, logging
+- **Configuration loading**: `internal/config/yaml_loader.go` loads defaults.yaml then overlays environment-specific YAML
 - `.env.local` file for development (automatically loaded when GO_ENV is not set or is "development")
 - Use `make env-setup` to create `.env.local` with a secure JWT secret
 - Comprehensive validation including JWT secret length (min 32 chars) and port ranges
-- PostgreSQL database configuration (optional - service works without database)
-- Support for TLS/HTTPS when certificate paths provided
-- Client auto-registration via `configs/clients.json` when `CLIENT_AUTO_REGISTER_ENABLED=true`
+- Support for TLS/HTTPS when certificate paths provided in YAML config
+- Client auto-registration via `configs/clients.json` when configured in YAML
 
 ### Security Features
 

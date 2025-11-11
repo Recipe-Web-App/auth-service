@@ -1,0 +1,115 @@
+# Default Configuration for OAuth2 Authentication Service
+# These values are used across all environments unless overridden by environment-specific configs
+# Connection data (hosts, ports, passwords) should be provided via .env files
+
+# Server Configuration
+server:
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 30s
+  tls_cert: ""
+  tls_key: ""
+
+# Redis Configuration
+redis:
+  max_retries: 3
+  pool_size: 10
+  min_idle_conn: 5
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  pool_timeout: 4s
+  idle_timeout: 300s
+
+# PostgreSQL Database Configuration
+postgres:
+  ssl_mode: require
+  max_conn: 25
+  min_conn: 5
+  max_conn_lifetime: 1h
+  max_conn_idle_time: 30m
+  health_check_period: 30s
+  connect_timeout: 10s
+
+# MySQL Database Configuration
+mysql:
+  max_conn: 25
+  min_conn: 5
+  max_conn_lifetime: 1h
+  max_conn_idle_time: 30m
+  health_check_period: 30s
+  connect_timeout: 10s
+
+# JWT Configuration
+jwt:
+  access_token_expiry: 15m
+  refresh_token_expiry: 168h
+  issuer: auth-service
+  algorithm: HS256
+
+# OAuth2 Configuration
+oauth2:
+  authorization_code_expiry: 10m
+  client_credentials_expiry: 1h
+  pkce_required: true
+  default_scopes:
+    - openid
+    - profile
+  supported_scopes:
+    - openid
+    - profile
+    - email
+    - read
+    - write
+    - media:read
+    - media:write
+    - user:read
+    - user:write
+    - admin
+    - notification:admin
+    - notification:user
+  supported_grant_types:
+    - authorization_code
+    - client_credentials
+    - refresh_token
+  supported_response_types:
+    - code
+
+# Security Configuration
+security:
+  rate_limit_rps: 100
+  rate_limit_burst: 200
+  rate_limit_window: 1m
+  allowed_origins:
+    - "*"
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allowed_headers:
+    - "*"
+  exposed_headers: []
+  allow_credentials: true
+  max_age: 86400
+  trusted_proxies: []
+  secure_cookies: true
+  same_site_cookies: strict
+
+# Logging Configuration
+logging:
+  level: info
+  format: json
+  output: stdout
+  console_format: text
+  file_format: json
+  file_path: ""
+  enable_dual_output: false
+
+# Client Auto-Registration Configuration
+client_auto_register:
+  enabled: false
+  config_path: configs/clients.json
+  create_sample_client: true

@@ -57,22 +57,8 @@ func TestLoad(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "invalid_jwt_algorithm",
-			envVars: map[string]string{
-				"JWT_SECRET":    jwtSecret,
-				"JWT_ALGORITHM": "INVALID",
-			},
-			wantErr: true,
-		},
-		{
-			name: "short_token_expiry",
-			envVars: map[string]string{
-				"JWT_SECRET":              jwtSecret,
-				"JWT_ACCESS_TOKEN_EXPIRY": "30s",
-			},
-			wantErr: true,
-		},
+		// Note: JWT_ALGORITHM and JWT_ACCESS_TOKEN_EXPIRY now come from YAML config files,
+		// not environment variables. Their validation is tested in TestConfigValidate.
 	}
 
 	for _, tt := range tests {

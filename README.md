@@ -249,39 +249,12 @@ See [API Reference](docs/api/API_REFERENCE.md) for detailed documentation and ex
 
 ## ⚙️ Configuration
 
-Configuration via environment variables:
+The service uses a hybrid configuration approach:
 
-```bash
-# Server
-SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
+- **Environment Variables** (`.env.local`) - Connection data and secrets (never committed)
+- **YAML Files** (`configs/*.yaml`) - Operational settings (committed to repository)
 
-# Redis (required)
-REDIS_URL=redis://localhost:6379
-REDIS_PASSWORD=""
-REDIS_DB=0
-
-# PostgreSQL (optional - for persistent storage)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=recipe_manager
-POSTGRES_SCHEMA=recipe_manager
-AUTH_DB_USER=auth_user
-AUTH_DB_PASSWORD=auth_password
-
-# JWT
-JWT_SECRET=your-256-bit-secret-key
-JWT_ISSUER=auth-service
-JWT_ACCESS_TOKEN_EXPIRY=15m
-
-# Security
-SECURITY_RATE_LIMIT_RPS=100
-SECURITY_ALLOWED_ORIGINS=https://example.com
-
-# Logging
-LOGGING_LEVEL=info
-LOGGING_FORMAT=json
-```
+### Environment Variables
 
 Create `.env.local` from the example file:
 
@@ -289,7 +262,68 @@ Create `.env.local` from the example file:
 cp .env.example .env.local
 ```
 
-See [.env.example](.env.example) for all configuration options.
+Environment variables contain **only** connection data and secrets:
+
+```bash
+# Environment - determines which YAML config to load (LOCAL, NONPROD, PROD)
+ENVIRONMENT=LOCAL
+
+# Server connection
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+
+# JWT Secret (REQUIRED - minimum 32 characters)
+JWT_SECRET=your-256-bit-secret-key-minimum-32-characters
+
+# Redis connection (required)
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=""
+REDIS_DB=0
+
+# PostgreSQL connection (optional - for persistent user storage)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=recipe_database
+POSTGRES_SCHEMA=recipe_manager
+AUTH_DB_USER=auth_user
+AUTH_DB_PASSWORD=auth_password
+
+# MySQL connection (optional - for OAuth2 client storage)
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DB=client_manager
+MYSQL_CLIENT_DB_USER=client_db_user
+MYSQL_CLIENT_DB_PASSWORD=client_db_password
+
+# Auth service client credentials
+AUTH_SERVICE_CLIENT_ID=auth-service-client-id
+AUTH_SERVICE_CLIENT_SECRET=auth-service-client-secret
+```
+
+### YAML Configuration Files
+
+Operational settings are managed in YAML configuration files:
+
+- **`configs/defaults.yaml`** - Base configuration for all environments
+- **`configs/local.yaml`** - Local development overrides
+- **`configs/nonprod.yaml`** - Non-production environment overrides
+- **`configs/prod.yaml`** - Production environment overrides
+
+The `ENVIRONMENT` variable determines which environment-specific YAML file to load. The service loads
+`defaults.yaml` first, then overlays the environment-specific file.
+
+**Example operational settings in YAML:**
+
+- JWT token expiry durations and algorithms
+- Server timeouts (read, write, idle)
+- Database connection pool sizes and timeouts
+- Redis connection pool settings
+- OAuth2 configuration (PKCE, scopes, code expiry)
+- Security settings (rate limits, CORS origins)
+- Logging configuration (level, format, output)
+- Client auto-registration settings
+
+See [.env.example](.env.example) for environment variables and `configs/*.yaml` files for operational settings.
 
 ## 🧪 Development
 

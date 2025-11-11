@@ -18,51 +18,101 @@ This service provides multiple deployment options:
 
 ## Environment Configuration
 
-### Required Environment Variables
+The service uses a **hybrid configuration approach** to separate sensitive connection data from operational settings:
+
+- **Environment Variables** (`.env.local`, `.env.prod`) - Connection data and secrets (never committed)
+- **YAML Files** (`configs/*.yaml`) - Operational settings (committed to repository)
+
+### Environment Variables (Connection Data & Secrets)
+
+Environment variables contain **only** connection data and secrets:
 
 ```bash
-# Server Configuration
-SERVER_ADDRESS=0.0.0.0:8080
-SERVER_READ_TIMEOUT=30s
-SERVER_WRITE_TIMEOUT=30s
-SERVER_IDLE_TIMEOUT=120s
+# Environment - determines which YAML config to load (LOCAL, NONPROD, PROD)
+ENVIRONMENT=LOCAL
 
-# Redis Configuration
-REDIS_ADDRESS=redis:6379
+# Server connection
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+
+# JWT Secret (REQUIRED - minimum 32 characters, NEVER commit this)
+JWT_SECRET=your-jwt-secret-minimum-32-characters-long
+
+# Redis connection (required)
+REDIS_URL=redis://localhost:6379
 REDIS_PASSWORD=""
 REDIS_DB=0
-REDIS_MAX_RETRIES=3
-REDIS_POOL_SIZE=10
 
-# JWT Configuration
-JWT_SECRET_KEY=your-256-bit-secret-key
-JWT_ISSUER=https://auth.example.com
-JWT_ACCESS_TOKEN_EXPIRY=15m
-JWT_REFRESH_TOKEN_EXPIRY=24h
+# PostgreSQL connection (optional - for persistent user storage)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=recipe_database
+POSTGRES_SCHEMA=recipe_manager
+AUTH_DB_USER=auth_user
+AUTH_DB_PASSWORD=auth_password
 
-# OAuth2 Configuration
-OAUTH2_AUTHORIZATION_CODE_EXPIRY=10m
+# MySQL connection (optional - for OAuth2 client storage)
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DB=client_manager
+MYSQL_CLIENT_DB_USER=client_db_user
+MYSQL_CLIENT_DB_PASSWORD=client_db_password
 
-# Security Configuration
-SECURITY_RATE_LIMIT_REQUESTS=100
-SECURITY_RATE_LIMIT_WINDOW=1m
-SECURITY_CORS_ALLOWED_ORIGINS=https://example.com,https://app.example.com
-SECURITY_CORS_ALLOWED_METHODS=GET,POST,OPTIONS
-SECURITY_CORS_ALLOWED_HEADERS=Content-Type,Authorization
-SECURITY_CORS_ALLOW_CREDENTIALS=true
-
-# Logging Configuration
-LOG_LEVEL=info
-LOG_FORMAT=json
+# Auth service client credentials
+AUTH_SERVICE_CLIENT_ID=auth-service-client-id
+AUTH_SERVICE_CLIENT_SECRET=auth-service-client-secret
 ```
 
-### Development Environment (.env.example)
+### YAML Configuration Files (Operational Settings)
 
-Create a `.env` file based on `.env.example`:
+Operational settings are managed in YAML configuration files:
+
+- **`configs/defaults.yaml`** - Base configuration for all environments
+- **`configs/local.yaml`** - Local development overrides
+- **`configs/nonprod.yaml`** - Non-production environment overrides
+- **`configs/prod.yaml`** - Production environment overrides
+
+The `ENVIRONMENT` environment variable determines which YAML file is loaded. The service loads `defaults.yaml`
+first, then overlays the environment-specific file.
+
+**Operational settings configured in YAML files:**
+
+- JWT token expiry durations, issuers, and algorithms
+- Server timeouts (read, write, idle)
+- Database connection pool sizes, timeouts, SSL modes
+- Redis connection pool settings and timeouts
+- OAuth2 configuration (PKCE enforcement, scopes, authorization code expiry)
+- Security settings (rate limits, CORS origins, allowed methods)
+- Logging configuration (level, format, dual output support)
+- Client auto-registration settings
+
+#### Example: Customizing for production
+
+Edit `configs/prod.yaml` to override defaults for production:
+
+```yaml
+server:
+  read_timeout: 15s
+  write_timeout: 15s
+
+security:
+  rate_limit_rps: 1000
+  allowed_origins:
+    - https://app.example.com
+    - https://api.example.com
+
+logging:
+  level: warn
+  format: json
+```
+
+### Development Environment Setup
+
+Create a `.env.local` file from the example:
 
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+cp .env.example .env.local
+# Edit .env.local with your connection data and secrets
 ```
 
 ## Local Development

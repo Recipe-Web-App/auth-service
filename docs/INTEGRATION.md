@@ -716,30 +716,56 @@ LOGGING_ENABLE_DUAL_OUTPUT=false    # Enable both console and file output
 
 #### TLS/HTTPS Setup
 
-```env
-SERVER_TLS_CERT=/etc/ssl/certs/auth.crt
-SERVER_TLS_KEY=/etc/ssl/private/auth.key
-SECURITY_SECURE_COOKIES=true
+Configure TLS paths in `configs/prod.yaml`:
+
+```yaml
+# configs/prod.yaml
+server:
+  tls_cert_path: /etc/ssl/certs/auth.crt
+  tls_key_path: /etc/ssl/private/auth.key
+
+security:
+  secure_cookies: true
 ```
 
 #### Redis High Availability
 
+Connection URL in `.env.prod`:
+
 ```env
 REDIS_URL=redis://redis-master:6379
 REDIS_PASSWORD=production-password
-REDIS_POOL_SIZE=20
-REDIS_MAX_RETRIES=5
+```
+
+Pool settings in `configs/prod.yaml`:
+
+```yaml
+redis:
+  pool_size: 20
+  max_retries: 5
 ```
 
 #### Security Hardening
 
+Security settings in `configs/prod.yaml`:
+
+```yaml
+oauth2:
+  pkce_required: true
+
+security:
+  rate_limit_rps: 50
+  allowed_origins:
+    - https://yourdomain.com
+    - https://app.yourdomain.com
+  allow_credentials: true
+  secure_cookies: true
+  same_site_cookies: strict
+```
+
+JWT secret in `.env.prod`:
+
 ```env
-OAUTH2_PKCE_REQUIRED=true
-SECURITY_RATE_LIMIT_RPS=50
-SECURITY_ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
-SECURITY_ALLOW_CREDENTIALS=true
-SECURITY_SECURE_COOKIES=true
-SECURITY_SAME_SITE_COOKIES=strict
 JWT_SECRET=very-long-random-secret-key-for-production-use-minimum-32-characters  # pragma: allowlist secret
 ```
 

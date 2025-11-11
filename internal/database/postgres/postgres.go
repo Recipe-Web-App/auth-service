@@ -1,4 +1,4 @@
-package database
+package postgres
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func NewManager(cfg *config.Config, logger *logrus.Logger) (*Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	manager := &Manager{
-		config:    &cfg.Database,
+		config:    &cfg.PostgresDatabase,
 		logger:    logger,
 		available: false,
 		ctx:       ctx,
@@ -46,15 +46,15 @@ func NewManager(cfg *config.Config, logger *logrus.Logger) (*Manager, error) {
 	}
 
 	// Only attempt connection if database is configured
-	if cfg.IsDatabaseConfigured() {
+	if cfg.IsPostgresDatabaseConfigured() {
 		if err := manager.connect(); err != nil {
-			logger.WithError(err).Warn("Failed to connect to database on startup, will retry periodically")
+			logger.WithError(err).Warn("Failed to connect to PostgreSQL database on startup, will retry periodically")
 		}
 
 		// Start background health monitoring
 		go manager.healthMonitor()
 	} else {
-		logger.Info("Database not configured, running in Redis-only mode")
+		logger.Info("PostgreSQL database not configured, running without PostgreSQL")
 	}
 
 	return manager, nil
@@ -99,7 +99,7 @@ func (m *Manager) connect() error {
 	m.available = true
 	m.mu.Unlock()
 
-	m.logger.Info("Successfully connected to database")
+	m.logger.Info("Successfully connected to PostgreSQL database")
 	return nil
 }
 
@@ -146,7 +146,7 @@ func (m *Manager) checkHealth() {
 			m.mu.Unlock()
 
 			if wasAvailable {
-				m.logger.WithError(err).Warn("Database connection lost, attempting reconnection")
+				m.logger.WithError(err).Warn("PostgreSQL database connection lost, attempting reconnection")
 			}
 		}
 		return
@@ -161,12 +161,12 @@ func (m *Manager) checkHealth() {
 		m.mu.Unlock()
 
 		if wasAvailable {
-			m.logger.WithError(err).Warn("Database health check failed, connection lost")
+			m.logger.WithError(err).Warn("PostgreSQL database health check failed, connection lost")
 		}
 
 		// Try to reconnect
 		if reconnectErr := m.connect(); reconnectErr != nil {
-			m.logger.WithError(reconnectErr).Debug("Reconnection attempt failed")
+			m.logger.WithError(reconnectErr).Debug("PostgreSQL reconnection attempt failed")
 		}
 	} else {
 		m.mu.Lock()
@@ -175,7 +175,7 @@ func (m *Manager) checkHealth() {
 		m.mu.Unlock()
 
 		if !isAvailable {
-			m.logger.Info("Database connection restored")
+			m.logger.Info("PostgreSQL database connection restored")
 		}
 	}
 }

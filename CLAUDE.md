@@ -88,7 +88,7 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 - `internal/handlers/` - HTTP handlers for OAuth2 endpoints, user auth, and health checks
 - `internal/middleware/` - Security middleware (CORS, rate limiting, logging)
 - `internal/token/` - JWT and PKCE token services
-- `internal/database/` - PostgreSQL connection management with health monitoring
+- `internal/database/postgres/` - PostgreSQL connection management with health monitoring
 - `internal/repository/` - User data repository interface and PostgreSQL implementation
 - `internal/redis/` - Redis client with fallback memory store
 - `internal/config/` - Environment-based configuration management (includes database config)

@@ -12,7 +12,7 @@ import (
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/client/notification"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
-	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/database/postgres"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/repository"
@@ -57,7 +57,7 @@ type userService struct {
 	store              redis.Store
 	tokenSvc           token.Service
 	logger             *logrus.Logger
-	dbMgr              *database.Manager
+	pgDBMgr            *postgres.Manager
 	userRepo           repository.UserRepository
 	notificationClient *notification.Client
 }
@@ -67,14 +67,14 @@ func NewUserService(
 	store redis.Store,
 	tokenSvc token.Service,
 	logger *logrus.Logger,
-	dbMgr *database.Manager,
+	pgDBMgr *postgres.Manager,
 	notificationClient *notification.Client,
 ) UserService {
 	var userRepo repository.UserRepository
-	if dbMgr != nil {
+	if pgDBMgr != nil {
 		// Pass a pool getter function that always retrieves the current pool
 		// This ensures the repository uses fresh connections after reconnection
-		userRepo = repository.NewPostgresUserRepository(dbMgr.Pool)
+		userRepo = repository.NewPostgresUserRepository(pgDBMgr.Pool)
 	}
 
 	return &userService{
@@ -82,7 +82,7 @@ func NewUserService(
 		store:              store,
 		tokenSvc:           tokenSvc,
 		logger:             logger,
-		dbMgr:              dbMgr,
+		pgDBMgr:            pgDBMgr,
 		userRepo:           userRepo,
 		notificationClient: notificationClient,
 	}
@@ -90,7 +90,7 @@ func NewUserService(
 
 // isDatabaseAvailable checks if database operations can be performed.
 func (s *userService) isDatabaseAvailable() bool {
-	return s.dbMgr != nil && s.dbMgr.IsAvailable() && s.userRepo != nil
+	return s.pgDBMgr != nil && s.pgDBMgr.IsAvailable() && s.userRepo != nil
 }
 
 // checkDatabaseRequirement returns an error if database is required but unavailable.

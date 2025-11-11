@@ -182,7 +182,7 @@ auth-service/
 - `internal/handlers/` - HTTP request handlers
 - `internal/auth/` - OAuth2 business logic and user services
 - `internal/repository/` - Data access layer
-- `internal/database/` - Database connection and health monitoring
+- `internal/database/postgres/` - PostgreSQL connection management with health monitoring
 - `internal/redis/` - Redis client with fallback memory store
 
 ## Testing

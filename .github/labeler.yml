@@ -48,7 +48,8 @@ tests:
 
 # Database
 database:
-  - internal/database/**/*
+  - internal/database/postgres/**/*
+  - internal/database/mysql/**/*
   - internal/repository/**/*
 
 # Auth/OAuth2

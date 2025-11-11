@@ -31,20 +31,54 @@ paths:
   /health:
     get:
       summary: Health check endpoint
-      description: Returns the health status of the service and its dependencies
+      description: |
+        Returns the health status of the service and its dependencies including Redis, PostgreSQL, and MySQL.
+
+        Status levels:
+        - **healthy**: All components (Redis, PostgreSQL, MySQL) are operational
+        - **degraded**: Redis is operational, but one or both databases are unavailable
+          (service still functions with reduced capabilities)
+        - **unhealthy**: Redis is unavailable (service cannot function)
+
+        Note: Both PostgreSQL and MySQL are optional. The service can operate without them in degraded mode.
       operationId: healthCheck
       tags:
         - Health
       security: []
       responses:
         '200':
-          description: Service is healthy
+          description: Service is healthy or degraded
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                timestamp: "2025-11-10T00:56:45Z"
+                version: "1.0.0"
+                uptime: "2h15m30s"
+                components:
+                  redis:
+                    status: healthy
+                    message: "Redis is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "2ms"
+                  postgres:
+                    status: healthy
+                    message: "PostgreSQL is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "5ms"
+                  mysql:
+                    status: healthy
+                    message: "MySQL is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "4ms"
+                  configuration:
+                    status: healthy
+                    message: "Configuration is valid"
+                    last_checked: "2025-11-10T00:56:45Z"
         '503':
-          description: Service is unhealthy
+          description: Service is unhealthy (Redis unavailable)
           content:
             application/json:
               schema:
@@ -69,20 +103,43 @@ paths:
   /health/ready:
     get:
       summary: Readiness check endpoint
-      description: Returns whether the service is ready to accept requests
+      description: |
+        Returns whether the service is ready to accept requests.
+
+        The service is considered ready if Redis is available. PostgreSQL and MySQL being unavailable
+        does not affect readiness status, as they are optional components. The service will continue
+        to function in degraded mode for OAuth2 operations even if databases are unavailable.
       operationId: readinessCheck
       tags:
         - Health
       security: []
       responses:
         '200':
-          description: Service is ready
+          description: Service is ready (Redis available)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadinessResponse'
+              example:
+                ready: true
+                timestamp: "2025-11-10T00:56:45Z"
+                components:
+                  redis:
+                    status: healthy
+                    message: "Redis is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "2ms"
+                  postgres:
+                    status: healthy
+                    message: "PostgreSQL is healthy"
+                    last_checked: "2025-11-10T00:56:45Z"
+                    response_time: "5ms"
+                  mysql:
+                    status: degraded
+                    message: "MySQL database not configured (optional)"
+                    last_checked: "2025-11-10T00:56:45Z"
         '503':
-          description: Service is not ready
+          description: Service is not ready (Redis unavailable)
           content:
             application/json:
               schema:
@@ -131,7 +188,9 @@ paths:
                   # HELP auth_component_health_status Health status of service components (1=healthy, 0=unhealthy)
                   # TYPE auth_component_health_status gauge
                   auth_component_health_status{component="redis"} 1
-                  auth_component_health_status{component="database"} 1
+                  auth_component_health_status{component="postgres"} 1
+                  auth_component_health_status{component="mysql"} 1
+                  auth_component_health_status{component="configuration"} 1
 
   /oauth2/authorize:
     get:
@@ -690,21 +749,56 @@ components:
       properties:
         status:
           type: string
-          enum: [healthy, unhealthy]
+          enum: [healthy, degraded, unhealthy]
+          description: Overall service health status
         timestamp:
           type: string
           format: date-time
-        checks:
-          type: object
-          properties:
-            redis:
-              type: string
-              enum: [up, down]
         version:
           type: string
+        uptime:
+          type: string
+          description: Service uptime duration
+        components:
+          type: object
+          description: Health status of individual components
+          properties:
+            redis:
+              $ref: '#/components/schemas/ComponentHealth'
+            postgres:
+              $ref: '#/components/schemas/ComponentHealth'
+            mysql:
+              $ref: '#/components/schemas/ComponentHealth'
+            configuration:
+              $ref: '#/components/schemas/ComponentHealth'
+        details:
+          type: object
+          description: Additional health check details
+          additionalProperties: true
       required:
         - status
         - timestamp
+
+    ComponentHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Component health status
+        message:
+          type: string
+          description: Human-readable status message
+        last_checked:
+          type: string
+          format: date-time
+          description: Timestamp of last health check
+        response_time:
+          type: string
+          description: Response time for the health check (e.g., "15ms")
+      required:
+        - status
+        - last_checked
 
     ReadinessResponse:
       type: object
@@ -714,6 +808,16 @@ components:
         timestamp:
           type: string
           format: date-time
+        components:
+          type: object
+          description: Component readiness status
+          properties:
+            redis:
+              $ref: '#/components/schemas/ComponentHealth'
+            postgres:
+              $ref: '#/components/schemas/ComponentHealth'
+            mysql:
+              $ref: '#/components/schemas/ComponentHealth'
       required:
         - ready
         - timestamp

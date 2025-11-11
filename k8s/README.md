@@ -59,34 +59,74 @@ The deployment includes:
 
 ## Configuration
 
-### Environment Variables
+The service uses a **hybrid configuration approach**:
 
-Before deployment, you need to set the following environment variables in your shell or CI/CD system:
+- **Environment Variables** (ConfigMap and Secret) - Connection data and secrets only
+- **YAML Configuration Files** (mounted as ConfigMap) - Operational settings
+
+### Environment Variables for Kubernetes
+
+Before deployment, set these environment variables in your shell or CI/CD system for template substitution:
 
 ```bash
-# JWT Configuration
-export JWT_SECRET="your-jwt-secret-key-minimum-32-characters-long" # pragma: allowlist secret
+# Environment - determines which YAML config to load
+export ENVIRONMENT="PROD"
 
-# Redis Configuration
-export REDIS_PASSWORD="your-redis-password" # pragma: allowlist secret
-
-# Security Configuration
-export SECURITY_ALLOWED_ORIGINS="https://yourdomain.com,https://api.yourdomain.com"
-
-# Server Configuration (optional, defaults provided)
-export GO_ENV="production"
+# Server connection
 export SERVER_HOST="0.0.0.0"
 export SERVER_PORT="8080"
 
-# OAuth2 Configuration (optional, defaults provided)
-export OAUTH2_PKCE_REQUIRED="true"
-export OAUTH2_DEFAULT_SCOPES="openid,profile"
-export OAUTH2_SUPPORTED_SCOPES="openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin,notification:admin,notification:user"
+# JWT Secret (REQUIRED - NEVER commit this)
+export JWT_SECRET="your-jwt-secret-key-minimum-32-characters-long" # pragma: allowlist secret
 
-# Rate Limiting (optional, defaults provided)
-export SECURITY_RATE_LIMIT_RPS="100"
-export SECURITY_RATE_LIMIT_BURST="200"
+# Redis connection
+export REDIS_URL="redis://redis-service:6379"
+export REDIS_PASSWORD="your-redis-password" # pragma: allowlist secret
+export REDIS_DB="0"
+
+# PostgreSQL connection (optional)
+export POSTGRES_HOST="postgres-service"
+export POSTGRES_PORT="5432"
+export POSTGRES_DB="recipe_database"
+export POSTGRES_SCHEMA="recipe_manager"
+export AUTH_DB_USER="auth_user"
+export AUTH_DB_PASSWORD="your-db-password"  # pragma: allowlist secret
+
+# MySQL connection (optional)
+export MYSQL_HOST="mysql-service"
+export MYSQL_PORT="3306"
+export MYSQL_DB="client_manager"
+export MYSQL_CLIENT_DB_USER="client_user"
+export MYSQL_CLIENT_DB_PASSWORD="your-mysql-password"  # pragma: allowlist secret
+
+# Auth service client credentials
+export AUTH_SERVICE_CLIENT_ID="auth-service-client-id"
+export AUTH_SERVICE_CLIENT_SECRET="your-client-secret"  # pragma: allowlist secret
 ```
+
+### YAML Configuration Files
+
+Operational settings are configured in `configs/*.yaml` files and should be mounted as a ConfigMap:
+
+```bash
+# Create ConfigMap from YAML files
+kubectl create configmap auth-service-yaml-config \
+  --from-file=defaults.yaml=configs/defaults.yaml \
+  --from-file=prod.yaml=configs/prod.yaml \
+  -n auth-service
+```
+
+**Operational settings in YAML** (not environment variables):
+
+- JWT token expiry durations, issuers, algorithms
+- Server timeouts (read, write, idle)
+- Database connection pool sizes, SSL modes
+- Redis connection pool settings
+- OAuth2 configuration (PKCE, scopes, grant types)
+- Security settings (rate limits, CORS origins)
+- Logging configuration (level, format)
+
+See `configs/prod.yaml` for production-specific overrides.
 
 ### Applying Templates
 

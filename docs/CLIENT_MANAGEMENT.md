@@ -43,16 +43,19 @@ make get-token CLIENT_ID=$CLIENT_ID CLIENT_SECRET=$CLIENT_SECRET
 
 ### Configuration File Method
 
-Enable automatic client registration in your environment:
+Enable automatic client registration in your YAML configuration file:
 
-```bash
-# .env.local
-CLIENT_AUTO_REGISTER_ENABLED=true
-CLIENT_AUTO_REGISTER_CONFIG_PATH=configs/clients.json
-CLIENT_AUTO_REGISTER_CREATE_SAMPLE_CLIENT=false
+```yaml
+# configs/local.yaml or environment-specific YAML
+client_auto_register:
+  enabled: true
+  config_path: configs/clients.json
+  create_sample_client: false
 ```
 
 The service will automatically register clients from `configs/clients.json` on startup.
+
+**Note:** These settings are now configured in YAML files (`configs/*.yaml`), not environment variables.
 
 ### Client Configuration Format
 

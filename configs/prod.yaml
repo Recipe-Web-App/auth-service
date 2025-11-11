@@ -1,0 +1,17 @@
+# Production Environment Configuration Overrides
+# These values override defaults.yaml for PROD environment
+
+# Security - configure specific origins for production
+security:
+  allowed_origins:
+    - http://notification-service.notification.svc.cluster.local:8000
+    - https://api.yourdomain.com
+    - https://app.yourdomain.com
+
+# Logging - info level for production with dual output
+logging:
+  level: info
+  enable_dual_output: true
+  console_format: text
+  file_format: json
+  file_path: /app/logs/app.log

@@ -1,0 +1,20 @@
+# Local Development Environment Configuration Overrides
+# These values override defaults.yaml for LOCAL environment
+
+# PostgreSQL - use disable for local development
+postgres:
+  ssl_mode: disable
+
+# Security - allow all origins for local development
+security:
+  allowed_origins:
+    - "*"
+
+# Logging - enhanced dual output for local debugging
+logging:
+  level: info
+  format: json
+  enable_dual_output: true
+  console_format: text
+  file_format: json
+  file_path: ./logs/app.log

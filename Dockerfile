@@ -52,6 +52,9 @@ RUN addgroup -g 10001 -S authservice && \
 # Copy the binary from build stage
 COPY --from=build --chown=authservice:authservice /app/auth-service /app/auth-service
 
+# Copy configuration files
+COPY --from=build --chown=authservice:authservice /app/configs /app/configs
+
 # Create logs directory
 RUN mkdir -p /app/logs && \
     chown authservice:authservice /app/logs

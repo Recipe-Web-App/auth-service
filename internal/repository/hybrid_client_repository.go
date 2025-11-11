@@ -322,6 +322,30 @@ func (r *HybridClientRepository) IsClientExists(ctx context.Context, clientID st
 	return exists, nil
 }
 
+// GetClientByName retrieves a client by name from MySQL (primary source).
+// This operation is not efficient in Redis, so we only check MySQL.
+func (r *HybridClientRepository) GetClientByName(ctx context.Context, name string) (*models.Client, error) {
+	r.mu.RLock()
+	mysqlAvailable := r.mysqlAvailable
+	r.mu.RUnlock()
+
+	// Only MySQL supports efficient name-based lookups
+	if !mysqlAvailable || r.mysql == nil {
+		return nil, errors.New("GetClientByName requires MySQL which is currently unavailable")
+	}
+
+	client, err := r.mysql.GetClientByName(ctx, name)
+	if err != nil {
+		if isConnectionError(err) {
+			r.logger.WithError(err).Warn("MySQL unavailable during GetClientByName")
+			r.setMySQLUnavailable()
+		}
+		return nil, err
+	}
+
+	return client, nil
+}
+
 // setMySQLUnavailable marks MySQL as unavailable (thread-safe).
 // This is called when connection errors are detected.
 func (r *HybridClientRepository) setMySQLUnavailable() {

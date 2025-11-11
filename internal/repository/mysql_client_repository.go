@@ -289,6 +289,23 @@ func (r *MySQLClientRepository) IsClientExists(ctx context.Context, clientID str
 	return exists, nil
 }
 
+// GetClientByName retrieves an OAuth2 client by its name.
+func (r *MySQLClientRepository) GetClientByName(ctx context.Context, name string) (*models.Client, error) {
+	db := r.getDB()
+	if db == nil {
+		return nil, errors.New("database connection not available")
+	}
+
+	query := `
+		SELECT client_id, client_secret_hash, client_name, grant_types, scopes, redirect_uris,
+		       is_active, created_at, updated_at, created_by, metadata
+		FROM oauth2_clients
+		WHERE client_name = ?
+		LIMIT 1`
+
+	return r.scanClient(ctx, db, query, name)
+}
+
 // scanClient is a helper method to scan a single client from a query.
 func (r *MySQLClientRepository) scanClient(
 	ctx context.Context,

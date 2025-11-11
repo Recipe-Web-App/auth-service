@@ -282,6 +282,7 @@ func Load() (*Config, error) {
 	cfg.OAuth2.SupportedScopes = []string{
 		"openid", "profile", "email", "read", "write",
 		"media:read", "media:write", "user:read", "user:write", "admin",
+		"notification:admin", "notification:user",
 	}
 
 	if err := cfg.Validate(); err != nil {

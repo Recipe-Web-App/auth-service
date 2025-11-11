@@ -90,4 +90,16 @@ type ClientRepository interface {
 	//   - bool: true if client exists, false otherwise
 	//   - error: nil on success, error if check fails
 	IsClientExists(ctx context.Context, clientID string) (bool, error)
+
+	// GetClientByName retrieves an OAuth2 client by its name.
+	// Used to prevent duplicate client registrations with the same name.
+	//
+	// Parameters:
+	//   - ctx: Context for cancellation and timeout
+	//   - name: The client name
+	//
+	// Returns:
+	//   - *models.Client: The client if found, nil if not found
+	//   - error: nil on success, error if retrieval fails
+	GetClientByName(ctx context.Context, name string) (*models.Client, error)
 }

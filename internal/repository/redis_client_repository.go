@@ -101,3 +101,13 @@ func (r *RedisClientRepository) IsClientExists(ctx context.Context, clientID str
 	}
 	return client != nil, nil
 }
+
+// GetClientByName retrieves an OAuth2 client by its name from Redis.
+// Note: This is not efficient in Redis as it requires scanning all client keys.
+// Consider using MySQL repository for name-based lookups.
+func (r *RedisClientRepository) GetClientByName(_ context.Context, _ string) (*models.Client, error) {
+	// Redis stores clients by ID, not by name.
+	// Scanning all keys to find by name would be inefficient.
+	// This operation should use the MySQL repository when available.
+	return nil, errors.New("GetClientByName is not efficiently supported in Redis repository")
+}

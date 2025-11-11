@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/repository"
 )
 
 // RegisterClient creates a new OAuth2 client with the specified configuration.
@@ -70,6 +71,17 @@ func (s *OAuth2Service) RegisterClientWithCreator(
 		if !s.containsScope(s.config.OAuth2.SupportedGrantTypes, grantType) {
 			return nil, fmt.Errorf("unsupported grant type: %s", grantType)
 		}
+	}
+
+	// Check if client with this name already exists
+	existingClient, checkErr := s.clientRepo.GetClientByName(ctx, name)
+	if checkErr != nil && checkErr.Error() != "GetClientByName requires MySQL which is currently unavailable" &&
+		checkErr.Error() != "GetClientByName is not efficiently supported in Redis repository" &&
+		!errors.Is(checkErr, repository.ErrClientNotFound) {
+		s.logger.WithError(checkErr).Warn("Failed to check for duplicate client name")
+		// Continue with registration - don't fail on lookup errors
+	} else if existingClient != nil {
+		return nil, fmt.Errorf("client with name '%s' already exists", name)
 	}
 
 	// Create new client with plaintext secret

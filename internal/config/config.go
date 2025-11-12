@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -19,6 +20,8 @@ const (
 	MinPortNumber = 1
 	// MaxPortNumber is the maximum valid port number.
 	MaxPortNumber = 65535
+	// maskPrefixLength is the number of characters to show before masking in logs.
+	maskPrefixLength = 3
 )
 
 // Config represents the complete configuration for the OAuth2 service.
@@ -112,31 +115,31 @@ type RedisConfig struct {
 // DatabaseConfig contains PostgreSQL database connection configuration and pool settings.
 type DatabaseConfig struct {
 	// Host is the PostgreSQL server hostname.
-	Host string `envconfig:"HOST"             default:"localhost"      mapstructure:"-"`
+	Host string `envconfig:"HOST"     default:"localhost"      mapstructure:"-"`
 	// Port is the PostgreSQL server port.
-	Port int `envconfig:"PORT"             default:"5432"           mapstructure:"-"`
+	Port int `envconfig:"PORT"     default:"5432"           mapstructure:"-"`
 	// Database is the PostgreSQL database name.
-	Database string `envconfig:"DB"               default:"recipe_manager" mapstructure:"-"`
+	Database string `envconfig:"DB"       default:"recipe_manager" mapstructure:"-"`
 	// Schema is the PostgreSQL schema name.
-	Schema string `envconfig:"SCHEMA"           default:"recipe_manager" mapstructure:"-"`
+	Schema string `envconfig:"SCHEMA"   default:"recipe_manager" mapstructure:"-"`
 	// User is the database username.
-	User string `envconfig:"AUTH_DB_USER"                              mapstructure:"-"`
+	User string `envconfig:"USER"                              mapstructure:"-"`
 	// Password is the database password.
-	Password string `envconfig:"AUTH_DB_PASSWORD"                          mapstructure:"-"`
+	Password string `envconfig:"PASSWORD"                          mapstructure:"-"`
 	// SSLMode is the SSL connection mode (from YAML).
-	SSLMode string `                                                      mapstructure:"ssl_mode"`
+	SSLMode string `                                              mapstructure:"ssl_mode"`
 	// MaxConn is the maximum number of connections in the pool (from YAML).
-	MaxConn int32 `                                                      mapstructure:"max_conn"`
+	MaxConn int32 `                                              mapstructure:"max_conn"`
 	// MinConn is the minimum number of connections in the pool (from YAML).
-	MinConn int32 `                                                      mapstructure:"min_conn"`
+	MinConn int32 `                                              mapstructure:"min_conn"`
 	// MaxConnLifetime is the maximum lifetime of a connection (from YAML).
-	MaxConnLifetime time.Duration `                                                      mapstructure:"max_conn_lifetime"`
+	MaxConnLifetime time.Duration `                                              mapstructure:"max_conn_lifetime"`
 	// MaxConnIdleTime is the maximum idle time for a connection (from YAML).
-	MaxConnIdleTime time.Duration `                                                      mapstructure:"max_conn_idle_time"`
+	MaxConnIdleTime time.Duration `                                              mapstructure:"max_conn_idle_time"`
 	// HealthCheckPeriod is how often to check database connectivity (from YAML).
-	HealthCheckPeriod time.Duration `                                                      mapstructure:"health_check_period"`
+	HealthCheckPeriod time.Duration `                                              mapstructure:"health_check_period"`
 	// ConnectTimeout is the timeout for establishing connections (from YAML).
-	ConnectTimeout time.Duration `                                                      mapstructure:"connect_timeout"`
+	ConnectTimeout time.Duration `                                              mapstructure:"connect_timeout"`
 }
 
 // MySQLConfig contains MySQL database connection configuration and pool settings.
@@ -270,6 +273,18 @@ func Load() (*Config, error) {
 	if configErr := envconfig.Process("", &cfg); configErr != nil {
 		return nil, fmt.Errorf("failed to load environment configuration: %w", configErr)
 	}
+
+	// Debug logging for PostgreSQL configuration
+	logrus.WithFields(logrus.Fields{
+		"postgres_host":     cfg.PostgresDatabase.Host,
+		"postgres_port":     cfg.PostgresDatabase.Port,
+		"postgres_db":       cfg.PostgresDatabase.Database,
+		"postgres_schema":   cfg.PostgresDatabase.Schema,
+		"postgres_user":     cfg.PostgresDatabase.User,
+		"postgres_password": maskString(cfg.PostgresDatabase.Password),
+		"user_empty":        cfg.PostgresDatabase.User == "",
+		"password_empty":    cfg.PostgresDatabase.Password == "",
+	}).Debug("PostgreSQL configuration loaded from environment variables")
 
 	// Step 2: Load operational settings from YAML files based on environment
 	yamlSettings, yamlSettingsErr := loadYAMLConfig(cfg.Environment.Environment)
@@ -440,6 +455,15 @@ func (c *Config) IsDatabaseConfigured() bool {
 }
 
 // IsPostgresDatabaseConfigured returns true if PostgreSQL database user and password are configured.
+//
+// This checks if both POSTGRES_USER and POSTGRES_PASSWORD environment variables are set and non-empty.
+// If this returns false, PostgreSQL will not be used and the service will fall back to Redis-only storage.
+//
+// Troubleshooting:
+// - Ensure POSTGRES_USER and POSTGRES_PASSWORD are set in your .env.local file
+// - Check that values are not empty strings or just whitespace
+// - Verify the .env.local file is being loaded (check GO_ENV or ENVIRONMENT variables)
+// - Enable debug logging (set LOG_LEVEL=debug) to see loaded configuration values.
 func (c *Config) IsPostgresDatabaseConfigured() bool {
 	return c.PostgresDatabase.User != "" && c.PostgresDatabase.Password != ""
 }
@@ -447,4 +471,17 @@ func (c *Config) IsPostgresDatabaseConfigured() bool {
 // IsMySQLDatabaseConfigured returns true if MySQL database user and password are configured.
 func (c *Config) IsMySQLDatabaseConfigured() bool {
 	return c.MySQLDatabase.User != "" && c.MySQLDatabase.Password != ""
+}
+
+// maskString masks a sensitive string for safe logging.
+// Shows first 3 characters followed by "***" to indicate value is present without exposing it.
+// If string is empty, returns "<empty>". If shorter than 3 chars, returns "***".
+func maskString(s string) string {
+	if s == "" {
+		return "<empty>"
+	}
+	if len(s) <= maskPrefixLength {
+		return "***"
+	}
+	return s[:maskPrefixLength] + "***"
 }

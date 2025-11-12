@@ -48,8 +48,8 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=recipe_database
 POSTGRES_SCHEMA=recipe_manager
-AUTH_DB_USER=auth_user
-AUTH_DB_PASSWORD=auth_password
+POSTGRES_USER=auth_user
+POSTGRES_PASSWORD=auth_password
 
 # MySQL connection (optional - for OAuth2 client storage)
 MYSQL_HOST=localhost

@@ -104,8 +104,8 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=recipe_manager
 POSTGRES_SCHEMA=recipe_manager
-AUTH_DB_USER=auth_user
-AUTH_DB_PASSWORD=auth_password
+POSTGRES_USER=auth_user
+POSTGRES_PASSWORD=auth_password
 
 # Security Configuration
 SECURITY_RATE_LIMIT_RPS=100
@@ -673,8 +673,8 @@ POSTGRES_HOST=localhost             # PostgreSQL server hostname
 POSTGRES_PORT=5432                  # PostgreSQL server port
 POSTGRES_DB=recipe_manager          # PostgreSQL database name
 POSTGRES_SCHEMA=recipe_manager      # PostgreSQL schema name
-AUTH_DB_USER=auth_user              # Database username
-AUTH_DB_PASSWORD=auth_password      # Database password
+POSTGRES_USER=auth_user             # Database username
+POSTGRES_PASSWORD=auth_password     # Database password
 POSTGRES_SSL_MODE=require           # SSL connection mode
 POSTGRES_MAX_CONN=25                # Maximum connections in pool
 POSTGRES_MIN_CONN=5                 # Minimum connections in pool
@@ -1696,8 +1696,8 @@ docker run -d --name postgres -p 5432:5432 \
 ERROR: FATAL: password authentication failed for user "auth_user"
 
 # Solution: Check credentials in environment variables
-echo $AUTH_DB_USER
-echo $AUTH_DB_PASSWORD
+echo $POSTGRES_USER
+echo $POSTGRES_PASSWORD
 
 # Database does not exist
 ERROR: FATAL: database "recipe_manager" does not exist

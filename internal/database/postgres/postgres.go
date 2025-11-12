@@ -45,7 +45,19 @@ func NewManager(cfg *config.Config, logger *logrus.Logger) (*Manager, error) {
 		cancel:    cancel,
 	}
 
+	// Debug logging for PostgreSQL configuration check
+	logger.WithFields(logrus.Fields{
+		"is_configured": cfg.IsPostgresDatabaseConfigured(),
+		"has_user":      cfg.PostgresDatabase.User != "",
+		"has_password":  cfg.PostgresDatabase.Password != "",
+		"user_length":   len(cfg.PostgresDatabase.User),
+		"password_len":  len(cfg.PostgresDatabase.Password),
+	}).Debug("Checking PostgreSQL configuration status")
+
 	// Only attempt connection if database is configured
+	// PostgreSQL requires both POSTGRES_USER and POSTGRES_PASSWORD environment variables to be set.
+	// If not configured, the service will run in Redis-only mode without persistent user storage.
+	// See IsPostgresDatabaseConfigured() documentation for troubleshooting steps.
 	if cfg.IsPostgresDatabaseConfigured() {
 		if err := manager.connect(); err != nil {
 			logger.WithError(err).Warn("Failed to connect to PostgreSQL database on startup, will retry periodically")

@@ -459,7 +459,6 @@ linters:
           - errcheck
           - funlen
           - goconst
-          - gosec
           - noctx
           - wrapcheck
       # Allow fmt.Print* and long functions in CLI tools

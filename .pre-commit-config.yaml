@@ -34,15 +34,6 @@ repos:
         description: Check Go code for style issues
         args: [--fix]
 
-  # Security scanning
-  - repo: https://github.com/TekWizely/pre-commit-golang
-    rev: v1.0.0-rc.3
-    hooks:
-      - id: go-sec-mod
-        name: Security scan with gosec
-        description: Run gosec security scanner
-        args: [-fmt=json, -out=gosec-report.json, -stdout, -verbose=text, ./...]
-
   # General hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

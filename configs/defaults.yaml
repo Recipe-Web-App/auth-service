@@ -24,7 +24,7 @@ redis:
 
 # PostgreSQL Database Configuration
 postgres:
-  ssl_mode: require
+  ssl_mode: disable
   max_conn: 25
   min_conn: 5
   max_conn_lifetime: 1h

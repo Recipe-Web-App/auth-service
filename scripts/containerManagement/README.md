@@ -160,8 +160,8 @@ POSTGRES_HOST="postgres-service"
 POSTGRES_PORT="5432"
 POSTGRES_DB="recipe_database"
 POSTGRES_SCHEMA="recipe_manager"
-AUTH_DB_USER="auth_user"
-AUTH_DB_PASSWORD="your-db-password"  # pragma: allowlist secret
+POSTGRES_USER="auth_user"
+POSTGRES_PASSWORD="your-db-password"  # pragma: allowlist secret
 
 # MySQL connection (optional)
 MYSQL_HOST="mysql-service"

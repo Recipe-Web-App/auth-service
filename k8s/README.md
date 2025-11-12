@@ -89,8 +89,8 @@ export POSTGRES_HOST="postgres-service"
 export POSTGRES_PORT="5432"
 export POSTGRES_DB="recipe_database"
 export POSTGRES_SCHEMA="recipe_manager"
-export AUTH_DB_USER="auth_user"
-export AUTH_DB_PASSWORD="your-db-password"  # pragma: allowlist secret
+export POSTGRES_USER="auth_user"
+export POSTGRES_PASSWORD="your-db-password"  # pragma: allowlist secret
 
 # MySQL connection (optional)
 export MYSQL_HOST="mysql-service"

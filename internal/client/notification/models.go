@@ -18,6 +18,13 @@ type WelcomeRequest struct {
 	RecipientIDs []string `json:"recipient_ids"`
 }
 
+// PasswordChangedRequest represents a password changed notification request.
+type PasswordChangedRequest struct {
+	// RecipientIDs contains one or more user IDs to send password changed notifications to.
+	// Supports batch operations for security events.
+	RecipientIDs []string `json:"recipient_ids"`
+}
+
 // BatchNotificationResponse represents the response from batch notification endpoints.
 type BatchNotificationResponse struct {
 	// Notifications contains the mapping of notification IDs to recipient IDs.

@@ -659,6 +659,27 @@ func (s *userService) ConfirmPasswordReset(
 		"email":   user.Email,
 	}).Info("Password reset completed successfully")
 
+	// Send password changed notification (fire-and-forget with graceful error handling)
+	if s.notificationClient != nil {
+		go func() {
+			notifReq := &notification.PasswordChangedRequest{
+				RecipientIDs: []string{user.UserID.String()},
+			}
+			if _, notifErr := s.notificationClient.SendPasswordChanged(context.Background(), notifReq); notifErr != nil {
+				s.logger.WithFields(logrus.Fields{
+					"user_id": user.UserID.String(),
+					"email":   user.Email,
+					"error":   notifErr,
+				}).Warn("Failed to send password changed notification")
+			} else {
+				s.logger.WithFields(logrus.Fields{
+					"user_id": user.UserID.String(),
+					"email":   user.Email,
+				}).Info("Password changed notification sent successfully")
+			}
+		}()
+	}
+
 	return &models.UserPasswordResetConfirmResponse{
 		Message:         "Password reset successfully",
 		PasswordUpdated: true,

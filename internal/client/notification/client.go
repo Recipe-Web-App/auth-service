@@ -101,16 +101,56 @@ func (c *Client) SendWelcomeEmail(
 	ctx context.Context,
 	req *WelcomeRequest,
 ) (*BatchNotificationResponse, error) {
-	c.logger.WithFields(logrus.Fields{
+	return c.sendNotification(ctx, "/notifications/welcome", req, "welcome email", logrus.Fields{
 		"recipient_count": len(req.RecipientIDs),
-	}).Debug("Sending welcome email notification")
+	})
+}
 
-	resp, err := c.DoWithAuth(ctx, http.MethodPost, "/notifications/welcome", req)
+// SendPasswordChanged sends a password changed security notification to one or more users.
+// This is a fire-and-forget operation - errors are logged but not returned to maintain
+// flow continuity. The notification service queues the emails asynchronously.
+// Supports batch operations for bulk security events.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - req: Password changed request with recipient IDs
+//
+// Returns the notification response with queued notification IDs, or error if request fails.
+func (c *Client) SendPasswordChanged(
+	ctx context.Context,
+	req *PasswordChangedRequest,
+) (*BatchNotificationResponse, error) {
+	return c.sendNotification(ctx, "/notifications/password-changed", req, "password changed", logrus.Fields{
+		"recipient_count": len(req.RecipientIDs),
+	})
+}
+
+// sendNotification is a helper method that handles the common notification sending logic.
+// It sends a notification request to the specified endpoint and processes the response.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout
+//   - endpoint: The notification endpoint path (e.g., "/notifications/welcome")
+//   - reqBody: The request body to send
+//   - notificationType: Human-readable notification type for logging (e.g., "welcome email")
+//   - logFields: Additional fields to include in debug/error logs
+//
+// Returns the notification response with queued notification IDs, or error if request fails.
+func (c *Client) sendNotification(
+	ctx context.Context,
+	endpoint string,
+	reqBody interface{},
+	notificationType string,
+	logFields logrus.Fields,
+) (*BatchNotificationResponse, error) {
+	c.logger.WithFields(logFields).Debugf("Sending %s notification", notificationType)
+
+	resp, err := c.DoWithAuth(ctx, http.MethodPost, endpoint, reqBody)
 	if err != nil {
 		c.logger.WithFields(logrus.Fields{
 			"error": err,
-		}).Error("Failed to send welcome email notification")
-		return nil, fmt.Errorf("failed to send welcome email notification: %w", err)
+		}).Errorf("Failed to send %s notification", notificationType)
+		return nil, fmt.Errorf("failed to send %s notification: %w", notificationType, err)
 	}
 	defer resp.Body.Close()
 
@@ -118,25 +158,25 @@ func (c *Client) SendWelcomeEmail(
 	if resp.StatusCode != http.StatusAccepted {
 		errResp, parseErr := c.parseErrorResponse(resp)
 		if parseErr != nil {
-			return nil, fmt.Errorf("welcome email notification failed with status %d", resp.StatusCode)
+			return nil, fmt.Errorf("%s notification failed with status %d", notificationType, resp.StatusCode)
 		}
 		c.logger.WithFields(logrus.Fields{
 			"status":  resp.StatusCode,
 			"error":   errResp.Error,
 			"message": errResp.Message,
-		}).Error("Welcome email notification request failed")
-		return nil, fmt.Errorf("welcome email notification failed: %s", errResp.Message)
+		}).Errorf("%s notification request failed", notificationType)
+		return nil, fmt.Errorf("%s notification failed: %s", notificationType, errResp.Message)
 	}
 
 	// Parse success response
 	var notifResp BatchNotificationResponse
 	if decodeErr := json.NewDecoder(resp.Body).Decode(&notifResp); decodeErr != nil {
-		return nil, fmt.Errorf("failed to decode welcome email response: %w", decodeErr)
+		return nil, fmt.Errorf("failed to decode %s response: %w", notificationType, decodeErr)
 	}
 
 	c.logger.WithFields(logrus.Fields{
 		"queued_count": notifResp.QueuedCount,
-	}).Info("Welcome email notification queued successfully")
+	}).Infof("%s notification queued successfully", notificationType)
 
 	return &notifResp, nil
 }

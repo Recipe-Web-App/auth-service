@@ -21,7 +21,9 @@ func setupNotificationClient(t *testing.T, handler http.HandlerFunc) (*notificat
 			"token_type":   "Bearer",
 			"expires_in":   3600,
 		}
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("Failed to encode response: %v", err)
+		}
 	}))
 
 	// Create notification API server
@@ -85,7 +87,9 @@ func TestNotificationClient_SendPasswordReset(t *testing.T) {
 			QueuedCount: 1,
 			Message:     "Notifications queued successfully",
 		}
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("Failed to encode response: %v", err)
+		}
 	})
 
 	ctx := context.Background()
@@ -139,7 +143,9 @@ func TestNotificationClient_SendWelcomeEmail(t *testing.T) {
 			QueuedCount: 2,
 			Message:     "Notifications queued successfully",
 		}
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("Failed to encode response: %v", err)
+		}
 	})
 
 	ctx := context.Background()
@@ -161,6 +167,91 @@ func TestNotificationClient_SendWelcomeEmail(t *testing.T) {
 	}
 }
 
+func TestNotificationClient_SendPasswordChanged(t *testing.T) {
+	notifClient, _ := setupNotificationClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST, got %s", r.Method)
+		}
+
+		if r.URL.Path != "/notifications/password-changed" {
+			t.Errorf("Expected path /notifications/password-changed, got %s", r.URL.Path)
+		}
+
+		// Verify request body
+		var req notification.PasswordChangedRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("Failed to decode request: %v", err)
+		}
+
+		if len(req.RecipientIDs) != 1 {
+			t.Errorf("Expected 1 recipient, got %d", len(req.RecipientIDs))
+		}
+
+		// Return success response
+		w.WriteHeader(http.StatusAccepted)
+		resp := notification.BatchNotificationResponse{
+			Notifications: []notification.Mapping{
+				{
+					NotificationID: "notif-id-1",
+					RecipientID:    req.RecipientIDs[0],
+				},
+			},
+			QueuedCount: 1,
+			Message:     "Notifications queued successfully",
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("Failed to encode response: %v", err)
+		}
+	})
+
+	ctx := context.Background()
+	req := &notification.PasswordChangedRequest{
+		RecipientIDs: []string{"user-id-1"},
+	}
+
+	resp, err := notifClient.SendPasswordChanged(ctx, req)
+	if err != nil {
+		t.Fatalf("SendPasswordChanged() failed: %v", err)
+	}
+
+	if resp.QueuedCount != 1 {
+		t.Errorf("Expected queued count 1, got %d", resp.QueuedCount)
+	}
+
+	if len(resp.Notifications) != 1 {
+		t.Errorf("Expected 1 notification mapping, got %d", len(resp.Notifications))
+	}
+}
+
+func TestNotificationClient_SendPasswordChanged_Error(t *testing.T) {
+	notifClient, _ := setupNotificationClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		errResp := notification.ErrorResponse{
+			Error:   "forbidden",
+			Message: "Requires service-to-service authentication",
+			Detail:  "Password change notifications require service-to-service authentication",
+		}
+		if err := json.NewEncoder(w).Encode(errResp); err != nil {
+			t.Fatalf("Failed to encode error response: %v", err)
+		}
+	})
+
+	ctx := context.Background()
+	req := &notification.PasswordChangedRequest{
+		RecipientIDs: []string{"user-id-1"},
+	}
+
+	_, err := notifClient.SendPasswordChanged(ctx, req)
+	if err == nil {
+		t.Fatal("Expected error from SendPasswordChanged(), got nil")
+	}
+
+	expectedMsg := "Requires service-to-service authentication"
+	if len(err.Error()) < len(expectedMsg) {
+		t.Errorf("Error message too short, got: %s", err.Error())
+	}
+}
+
 func TestNotificationClient_SendPasswordReset_Error(t *testing.T) {
 	notifClient, _ := setupNotificationClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -169,7 +260,9 @@ func TestNotificationClient_SendPasswordReset_Error(t *testing.T) {
 			Message: "Invalid reset token",
 			Detail:  "Reset token must be at least 20 characters",
 		}
-		json.NewEncoder(w).Encode(errResp)
+		if err := json.NewEncoder(w).Encode(errResp); err != nil {
+			t.Fatalf("Failed to encode error response: %v", err)
+		}
 	})
 
 	ctx := context.Background()

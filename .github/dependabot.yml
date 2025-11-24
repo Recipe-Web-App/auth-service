@@ -12,8 +12,6 @@ updates:
     open-pull-requests-limit: 100
     assignees:
       - "jsamuelsen11"
-    reviewers:
-      - "jsamuelsen11"
     commit-message:
       prefix: "deps"
       prefix-development: "deps-dev"
@@ -50,8 +48,6 @@ updates:
     open-pull-requests-limit: 100
     assignees:
       - "jsamuelsen11"
-    reviewers:
-      - "jsamuelsen11"
     commit-message:
       prefix: "ci"
       include: "scope"
@@ -76,8 +72,6 @@ updates:
     open-pull-requests-limit: 100
     assignees:
       - "jsamuelsen11"
-    reviewers:
-      - "jsamuelsen11"
     commit-message:
       prefix: "docker"
       include: "scope"
@@ -96,8 +90,6 @@ updates:
       timezone: "US/Eastern"
     open-pull-requests-limit: 100
     assignees:
-      - "jsamuelsen11"
-    reviewers:
       - "jsamuelsen11"
     commit-message:
       prefix: "docker"

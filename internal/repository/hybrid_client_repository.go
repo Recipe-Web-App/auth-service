@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/models"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
 	"github.com/sirupsen/logrus"
 )
 
@@ -78,7 +79,10 @@ func (r *HybridClientRepository) tryMySQLCreate(ctx context.Context, client *mod
 		return false, err
 	}
 
-	// MySQL succeeded, update cache
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
+	// Update cache
 	if cacheErr := r.redis.CreateClient(ctx, client); cacheErr != nil {
 		r.logger.WithError(cacheErr).Warn("Failed to cache client in Redis after MySQL create")
 		// Don't fail the operation - MySQL is source of truth
@@ -90,32 +94,28 @@ func (r *HybridClientRepository) tryMySQLCreate(ctx context.Context, client *mod
 func (r *HybridClientRepository) GetClientByID(ctx context.Context, clientID string) (*models.Client, error) {
 	// Try cache first
 	client, err := r.redis.GetClientByID(ctx, clientID)
-	if err == nil && client != nil {
+	if err != nil && !errors.Is(err, redis.ErrCacheMiss) {
+		// Actual Redis error (not just cache miss)
+		r.logger.WithError(err).WithField("client_id", clientID).Debug("Redis error during GetClientByID")
+	}
+	if client != nil {
 		return client, nil // Cache hit
 	}
 
-	if err != nil {
-		r.logger.WithError(err).Debug("Redis cache miss or error during GetClientByID")
-	}
-
 	// Cache miss - try MySQL
-	r.mu.RLock()
-	mysqlAvailable := r.mysqlAvailable
-	r.mu.RUnlock()
-
-	if !mysqlAvailable || r.mysql == nil {
-		// MySQL not available, return Redis result
-		if client == nil && err == nil {
-			return nil, ErrClientNotFound
-		}
-		return client, err
+	// Note: We attempt MySQL even if previously marked unavailable to allow recovery
+	if r.mysql == nil {
+		r.logger.WithField("client_id", clientID).Debug("Cache miss, MySQL not configured")
+		return nil, ErrClientNotFound
 	}
+
+	r.logger.WithField("client_id", clientID).Debug("Redis cache miss, fetching from MySQL")
 
 	// Fetch from MySQL
 	client, err = r.mysql.GetClientByID(ctx, clientID)
 	if err != nil {
 		if isConnectionError(err) {
-			r.logger.WithError(err).Warn("MySQL unavailable during GetClientByID")
+			r.logger.WithError(err).WithField("client_id", clientID).Warn("MySQL unavailable during GetClientByID")
 			r.setMySQLUnavailable()
 		}
 		return nil, err
@@ -125,9 +125,14 @@ func (r *HybridClientRepository) GetClientByID(ctx context.Context, clientID str
 		return nil, ErrClientNotFound
 	}
 
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
 	// Populate cache (best effort - don't fail if cache update fails)
 	if cacheErr := r.redis.CreateClient(ctx, client); cacheErr != nil {
-		r.logger.WithError(cacheErr).Debug("Failed to populate cache after MySQL read")
+		r.logger.WithError(cacheErr).WithField("client_id", clientID).Debug("Failed to populate cache after MySQL read")
+	} else {
+		r.logger.WithField("client_id", clientID).Debug("Client fetched from MySQL and cached")
 	}
 
 	return client, nil
@@ -171,7 +176,10 @@ func (r *HybridClientRepository) tryMySQLUpdate(ctx context.Context, client *mod
 		return false, err
 	}
 
-	// MySQL succeeded, update cache
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
+	// Update cache
 	if cacheErr := r.redis.UpdateClient(ctx, client); cacheErr != nil {
 		r.logger.WithError(cacheErr).Warn("Failed to update cache in Redis after MySQL update")
 	}
@@ -219,7 +227,10 @@ func (r *HybridClientRepository) tryMySQLUpdateSecret(
 		return false, err
 	}
 
-	// MySQL succeeded, update cache
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
+	// Update cache
 	if cacheErr := r.redis.UpdateClientSecret(ctx, clientID, newSecretHash); cacheErr != nil {
 		r.logger.WithError(cacheErr).Warn("Failed to update secret in Redis cache after MySQL update")
 	}
@@ -264,7 +275,10 @@ func (r *HybridClientRepository) tryMySQLDelete(ctx context.Context, clientID st
 		return false, err
 	}
 
-	// MySQL succeeded, delete from cache
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
+	// Delete from cache
 	if cacheErr := r.redis.DeleteClient(ctx, clientID); cacheErr != nil {
 		r.logger.WithError(cacheErr).Warn("Failed to delete from Redis cache after MySQL delete")
 	}
@@ -273,12 +287,8 @@ func (r *HybridClientRepository) tryMySQLDelete(ctx context.Context, clientID st
 
 // ListActiveClients retrieves all active clients from MySQL (primary source).
 func (r *HybridClientRepository) ListActiveClients(ctx context.Context) ([]*models.Client, error) {
-	r.mu.RLock()
-	mysqlAvailable := r.mysqlAvailable
-	r.mu.RUnlock()
-
-	if !mysqlAvailable || r.mysql == nil {
-		return nil, errors.New("ListActiveClients requires MySQL which is currently unavailable")
+	if r.mysql == nil {
+		return nil, errors.New("ListActiveClients requires MySQL which is not configured")
 	}
 
 	clients, err := r.mysql.ListActiveClients(ctx)
@@ -289,6 +299,9 @@ func (r *HybridClientRepository) ListActiveClients(ctx context.Context) ([]*mode
 		}
 		return nil, err
 	}
+
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
 
 	return clients, nil
 }
@@ -301,12 +314,8 @@ func (r *HybridClientRepository) IsClientExists(ctx context.Context, clientID st
 		return true, nil // Cache hit
 	}
 
-	// Check MySQL
-	r.mu.RLock()
-	mysqlAvailable := r.mysqlAvailable
-	r.mu.RUnlock()
-
-	if !mysqlAvailable || r.mysql == nil {
+	// Check MySQL (attempt even if previously marked unavailable to allow recovery)
+	if r.mysql == nil {
 		return exists, err // Return Redis result
 	}
 
@@ -319,19 +328,18 @@ func (r *HybridClientRepository) IsClientExists(ctx context.Context, clientID st
 		return false, err
 	}
 
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
 	return exists, nil
 }
 
 // GetClientByName retrieves a client by name from MySQL (primary source).
 // This operation is not efficient in Redis, so we only check MySQL.
 func (r *HybridClientRepository) GetClientByName(ctx context.Context, name string) (*models.Client, error) {
-	r.mu.RLock()
-	mysqlAvailable := r.mysqlAvailable
-	r.mu.RUnlock()
-
 	// Only MySQL supports efficient name-based lookups
-	if !mysqlAvailable || r.mysql == nil {
-		return nil, errors.New("GetClientByName requires MySQL which is currently unavailable")
+	if r.mysql == nil {
+		return nil, errors.New("GetClientByName requires MySQL which is not configured")
 	}
 
 	client, err := r.mysql.GetClientByName(ctx, name)
@@ -343,6 +351,9 @@ func (r *HybridClientRepository) GetClientByName(ctx context.Context, name strin
 		return nil, err
 	}
 
+	// MySQL succeeded - restore availability if it was previously marked unavailable
+	r.restoreMySQLAvailable()
+
 	return client, nil
 }
 
@@ -351,7 +362,21 @@ func (r *HybridClientRepository) GetClientByName(ctx context.Context, name strin
 func (r *HybridClientRepository) setMySQLUnavailable() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.mysqlAvailable {
+		r.logger.Warn("MySQL marked as unavailable")
+	}
 	r.mysqlAvailable = false
+}
+
+// restoreMySQLAvailable marks MySQL as available after a successful operation (thread-safe).
+// This enables automatic recovery after transient connection errors.
+func (r *HybridClientRepository) restoreMySQLAvailable() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.mysqlAvailable {
+		r.logger.Info("MySQL connectivity restored")
+		r.mysqlAvailable = true
+	}
 }
 
 // SetMySQLAvailable updates the MySQL availability flag (thread-safe).

@@ -195,6 +195,13 @@ func (h *OAuth2Handler) IntrospectToken(w http.ResponseWriter, r *http.Request) 
 	// Extract client credentials
 	clientID, clientSecret := h.extractClientCredentials(r)
 
+	// Log credential extraction details for debugging authentication issues
+	h.logger.WithFields(map[string]interface{}{
+		"has_auth_header":    r.Header.Get("Authorization") != "",
+		"has_form_client_id": r.FormValue("client_id") != "",
+		"client_id_present":  clientID != "",
+	}).Debug("Client credential extraction result for introspection")
+
 	req := &models.IntrospectionRequest{
 		Token:         r.FormValue("token"),
 		TokenTypeHint: r.FormValue("token_type_hint"),
@@ -231,6 +238,13 @@ func (h *OAuth2Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 
 	// Extract client credentials
 	clientID, clientSecret := h.extractClientCredentials(r)
+
+	// Log credential extraction details for debugging authentication issues
+	h.logger.WithFields(map[string]interface{}{
+		"has_auth_header":    r.Header.Get("Authorization") != "",
+		"has_form_client_id": r.FormValue("client_id") != "",
+		"client_id_present":  clientID != "",
+	}).Debug("Client credential extraction result for revocation")
 
 	req := &models.RevocationRequest{
 		Token:         r.FormValue("token"),

@@ -139,6 +139,9 @@ func (s *OAuth2Service) GetClient(ctx context.Context, clientID string) (*models
 // The client secret is verified using bcrypt hash comparison.
 func (s *OAuth2Service) ValidateClient(ctx context.Context, clientID, clientSecret string) (*models.Client, error) {
 	if clientID == "" {
+		s.logger.Warn("Client validation failed: no client_id provided. " +
+			"Ensure client credentials are sent via HTTP Basic Auth (Authorization: Basic base64(client_id:client_secret)) " +
+			"or as form parameters (client_id and client_secret in request body)")
 		return nil, models.NewInvalidClient("client_id is required")
 	}
 

@@ -202,13 +202,14 @@ func (m *MemoryStore) StoreClient(_ context.Context, client *models.Client) erro
 }
 
 // GetClient retrieves a client from memory.
+// Returns ErrCacheMiss if the client is not in cache.
 func (m *MemoryStore) GetClient(_ context.Context, clientID string) (*models.Client, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	client, exists := m.clients[clientID]
 	if !exists {
-		return nil, errors.New("client not found")
+		return nil, ErrCacheMiss
 	}
 
 	return client, nil

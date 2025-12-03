@@ -357,7 +357,25 @@ paths:
   /oauth2/introspect:
     post:
       summary: Token introspection endpoint
-      description: Returns metadata about a token including its validity and associated claims
+      description: |
+        Returns metadata about a token including its validity and associated claims.
+
+        **Client Authentication Required**
+
+        This endpoint requires client authentication per RFC 7662. Use one of the following methods:
+
+        1. **HTTP Basic Authentication** (recommended):
+           ```
+           Authorization: Basic base64(client_id:client_secret)
+           ```
+           Example: For client_id `my-client` and secret `my-secret`, encode `my-client:my-secret`
+           to get `Authorization: Basic bXktY2xpZW50Om15LXNlY3JldA==`
+
+        2. **Form Parameters** (alternative):
+           Include `client_id` and `client_secret` as additional form parameters in the request body.
+
+        **Note:** Only authorized resource servers should call this endpoint to validate tokens
+        received from clients.
       operationId: introspect
       tags:
         - OAuth2
@@ -369,6 +387,9 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/IntrospectRequest'
+            example:
+              token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              token_type_hint: "access_token"
       responses:
         '200':
           description: Token introspection response
@@ -386,7 +407,23 @@ paths:
   /oauth2/revoke:
     post:
       summary: Token revocation endpoint
-      description: Revokes an access token or refresh token
+      description: |
+        Revokes an access token or refresh token, making it invalid for future use.
+
+        **Client Authentication Required**
+
+        This endpoint requires client authentication per RFC 7009. Use one of the following methods:
+
+        1. **HTTP Basic Authentication** (recommended):
+           ```
+           Authorization: Basic base64(client_id:client_secret)
+           ```
+
+        2. **Form Parameters** (alternative):
+           Include `client_id` and `client_secret` as additional form parameters in the request body.
+
+        **Note:** Per RFC 7009, this endpoint always returns 200 OK even if the token was not found
+        or was already revoked, to prevent token scanning attacks.
       operationId: revoke
       tags:
         - OAuth2
@@ -398,6 +435,9 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/RevokeRequest'
+            example:
+              token: "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+              token_type_hint: "refresh_token"
       responses:
         '200':
           description: Token revoked successfully

@@ -65,6 +65,57 @@ type Client struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"   redis:"metadata"`
 }
 
+// ClientCacheEntry is used for internal caching and includes the secret hash.
+// Unlike Client, this struct includes the secret field in JSON serialization.
+// This should NEVER be used in HTTP responses - only for Redis caching.
+type ClientCacheEntry struct {
+	ID           string                 `json:"id"`
+	Secret       string                 `json:"secret"` // Included for caching (unlike Client)
+	Name         string                 `json:"name"`
+	RedirectURIs []string               `json:"redirect_uris"`
+	Scopes       []string               `json:"scopes"`
+	GrantTypes   []string               `json:"grant_types"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
+	IsActive     bool                   `json:"is_active"`
+	CreatedBy    *string                `json:"created_by,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// ToClient converts a cache entry to a Client (for internal use).
+func (c *ClientCacheEntry) ToClient() *Client {
+	return &Client{
+		ID:           c.ID,
+		Secret:       c.Secret,
+		Name:         c.Name,
+		RedirectURIs: c.RedirectURIs,
+		Scopes:       c.Scopes,
+		GrantTypes:   c.GrantTypes,
+		CreatedAt:    c.CreatedAt,
+		UpdatedAt:    c.UpdatedAt,
+		IsActive:     c.IsActive,
+		CreatedBy:    c.CreatedBy,
+		Metadata:     c.Metadata,
+	}
+}
+
+// ToCacheEntry converts a Client to a cache entry for Redis storage.
+func (c *Client) ToCacheEntry() *ClientCacheEntry {
+	return &ClientCacheEntry{
+		ID:           c.ID,
+		Secret:       c.Secret,
+		Name:         c.Name,
+		RedirectURIs: c.RedirectURIs,
+		Scopes:       c.Scopes,
+		GrantTypes:   c.GrantTypes,
+		CreatedAt:    c.CreatedAt,
+		UpdatedAt:    c.UpdatedAt,
+		IsActive:     c.IsActive,
+		CreatedBy:    c.CreatedBy,
+		Metadata:     c.Metadata,
+	}
+}
+
 // AuthorizationCode represents a temporary authorization code used in the
 // OAuth2 authorization code flow, including PKCE support.
 type AuthorizationCode struct {

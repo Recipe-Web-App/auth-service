@@ -36,6 +36,11 @@ const (
 	MinTokenLengthForMasking = 8
 )
 
+// ErrCacheMiss is returned when a key does not exist in the cache.
+// This is a sentinel error that callers can check to distinguish between
+// a cache miss (expected) and an actual error (unexpected).
+var ErrCacheMiss = errors.New("cache miss")
+
 // Client is a Redis client wrapper that implements the Store interface for OAuth2 data storage.
 // It provides thread-safe access to Redis operations with connection pooling, structured logging,
 // and automatic error handling. The client maintains a persistent connection pool and handles
@@ -310,7 +315,10 @@ func (c *Client) GetRedisClient() *redis.Client {
 //   - error: JSON marshaling or Redis operation error
 func (c *Client) StoreClient(ctx context.Context, client *models.Client) error {
 	key := clientKey(client.ID)
-	data, err := json.Marshal(client)
+	// Use cache entry to include secret in JSON serialization
+	// (Client.Secret has json:"-" which would exclude it)
+	cacheEntry := client.ToCacheEntry()
+	data, err := json.Marshal(cacheEntry)
 	if err != nil {
 		return fmt.Errorf("failed to marshal client: %w", err)
 	}
@@ -331,24 +339,26 @@ func (c *Client) StoreClient(ctx context.Context, client *models.Client) error {
 //   - clientID: Unique identifier of the OAuth2 client
 //
 // Returns:
-//   - *models.Client: Client data if found, nil if not found
-//   - error: "client not found", JSON unmarshaling, or Redis operation error
+//   - *models.Client: Client data if found, nil if not found (cache miss)
+//   - error: ErrCacheMiss if not found, or other error for Redis/unmarshaling failures
 func (c *Client) GetClient(ctx context.Context, clientID string) (*models.Client, error) {
 	key := clientKey(clientID)
 	data, err := c.rdb.Get(ctx, key).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return nil, errors.New("client not found")
+			return nil, ErrCacheMiss
 		}
 		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
 
-	var client models.Client
-	if unmarshalErr := json.Unmarshal([]byte(data), &client); unmarshalErr != nil {
+	// Unmarshal into cache entry to include the secret field
+	// (Client.Secret has json:"-" which would leave it empty)
+	var cacheEntry models.ClientCacheEntry
+	if unmarshalErr := json.Unmarshal([]byte(data), &cacheEntry); unmarshalErr != nil {
 		return nil, fmt.Errorf("failed to unmarshal client: %w", unmarshalErr)
 	}
 
-	return &client, nil
+	return cacheEntry.ToClient(), nil
 }
 
 // DeleteClient removes an OAuth2 client registration from Redis.

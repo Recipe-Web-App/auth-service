@@ -51,7 +51,7 @@
       "https://recipe-scraper.local/api/v1/recipe-scraper/auth/callback"
     ],
     "scopes": ["read", "write", "admin"],
-    "grant_types": ["client_credentials", "authorization_code", "refresh_token"]
+    "grant_types": ["client_credentials", "authorization_code", "refresh_token", "user:read"]
   },
   {
     "name": "User Management Service",

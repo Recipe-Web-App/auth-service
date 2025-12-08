@@ -31,7 +31,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/server
 
 # Production stage
-FROM alpine:3.22 AS production
+FROM alpine:3.23 AS production
 
 # Install runtime dependencies without pinned versions
 # Alpine 3.22 packages are updated frequently

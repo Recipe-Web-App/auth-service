@@ -50,8 +50,8 @@
       "http://localhost:8000/api/v1/recipe-scraper/auth/callback",
       "https://recipe-scraper.local/api/v1/recipe-scraper/auth/callback"
     ],
-    "scopes": ["read", "write", "admin"],
-    "grant_types": ["client_credentials", "authorization_code", "refresh_token", "user:read"]
+    "scopes": ["read", "write", "admin", "user:read"],
+    "grant_types": ["client_credentials", "authorization_code", "refresh_token"]
   },
   {
     "name": "User Management Service",

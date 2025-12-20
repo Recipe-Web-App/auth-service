@@ -100,9 +100,9 @@ client := NewOAuthClient(
 
 ```javascript
 const client = new OAuthClient(
-    process.env.CLIENT_ID,
-    process.env.CLIENT_SECRET,
-    'http://auth-service:8080'
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  "http://auth-service:8080",
 );
 ```
 
@@ -122,8 +122,8 @@ resp, err := client.MakeAuthenticatedRequest(
 
 ```javascript
 const recipes = await client.makeAuthenticatedRequest(
-    'GET',
-    'http://recipe-service:8080/api/recipes'
+  "GET",
+  "http://recipe-service:8080/api/recipes",
 );
 ```
 
@@ -154,7 +154,7 @@ token, err := client.GetAccessToken([]string{"read", "admin"})
 
 ```javascript
 // JavaScript
-const token = await client.getAccessToken(['read', 'admin']);
+const token = await client.getAccessToken(["read", "admin"]);
 ```
 
 ### Token Introspection

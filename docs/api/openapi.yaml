@@ -46,12 +46,12 @@ paths:
         - Health
       security: []
       responses:
-        '200':
+        "200":
           description: Service is healthy or degraded
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
               example:
                 status: healthy
                 timestamp: "2025-11-10T00:56:45Z"
@@ -77,12 +77,12 @@ paths:
                     status: healthy
                     message: "Configuration is valid"
                     last_checked: "2025-11-10T00:56:45Z"
-        '503':
+        "503":
           description: Service is unhealthy (Redis unavailable)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /health/live:
     get:
@@ -93,12 +93,12 @@ paths:
         - Health
       security: []
       responses:
-        '200':
+        "200":
           description: Service is alive
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LivenessResponse'
+                $ref: "#/components/schemas/LivenessResponse"
 
   /health/ready:
     get:
@@ -114,12 +114,12 @@ paths:
         - Health
       security: []
       responses:
-        '200':
+        "200":
           description: Service is ready (Redis available)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReadinessResponse'
+                $ref: "#/components/schemas/ReadinessResponse"
               example:
                 ready: true
                 timestamp: "2025-11-10T00:56:45Z"
@@ -138,12 +138,12 @@ paths:
                     status: degraded
                     message: "MySQL database not configured (optional)"
                     last_checked: "2025-11-10T00:56:45Z"
-        '503':
+        "503":
           description: Service is not ready (Redis unavailable)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /metrics:
     get:
@@ -162,7 +162,7 @@ paths:
         - Monitoring
       security: []
       responses:
-        '200':
+        "200":
           description: Service metrics in Prometheus text format
           content:
             text/plain:
@@ -247,7 +247,7 @@ paths:
             enum: [S256]
             default: S256
       responses:
-        '302':
+        "302":
           description: Redirect to client with authorization code or error
           headers:
             Location:
@@ -255,12 +255,12 @@ paths:
               schema:
                 type: string
                 format: uri
-        '400':
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
     post:
       summary: OAuth2 authorization endpoint (POST)
       description: |
@@ -300,7 +300,7 @@ paths:
                 - redirect_uri
                 - code_challenge
       responses:
-        '302':
+        "302":
           description: Redirect to client with authorization code or error
           headers:
             Location:
@@ -308,12 +308,12 @@ paths:
               schema:
                 type: string
                 format: uri
-        '400':
+        "400":
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
 
   /oauth2/token:
     post:
@@ -331,28 +331,28 @@ paths:
           application/x-www-form-urlencoded:
             schema:
               oneOf:
-                - $ref: '#/components/schemas/AuthorizationCodeRequest'
-                - $ref: '#/components/schemas/ClientCredentialsRequest'
-                - $ref: '#/components/schemas/RefreshTokenRequest'
+                - $ref: "#/components/schemas/AuthorizationCodeRequest"
+                - $ref: "#/components/schemas/ClientCredentialsRequest"
+                - $ref: "#/components/schemas/RefreshTokenRequest"
       responses:
-        '200':
+        "200":
           description: Token response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenResponse'
-        '400':
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
-        '401':
+                $ref: "#/components/schemas/OAuth2Error"
+        "401":
           description: Invalid client credentials
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
 
   /oauth2/introspect:
     post:
@@ -386,23 +386,23 @@ paths:
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/IntrospectRequest'
+              $ref: "#/components/schemas/IntrospectRequest"
             example:
               token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
               token_type_hint: "access_token"
       responses:
-        '200':
+        "200":
           description: Token introspection response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IntrospectResponse'
-        '401':
+                $ref: "#/components/schemas/IntrospectResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
 
   /oauth2/revoke:
     post:
@@ -434,19 +434,19 @@ paths:
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/RevokeRequest'
+              $ref: "#/components/schemas/RevokeRequest"
             example:
               token: "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
               token_type_hint: "refresh_token"
       responses:
-        '200':
+        "200":
           description: Token revoked successfully
-        '401':
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
 
   /.well-known/oauth-authorization-server:
     get:
@@ -457,12 +457,12 @@ paths:
         - OAuth2
       security: []
       responses:
-        '200':
+        "200":
           description: Authorization server metadata
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuthDiscovery'
+                $ref: "#/components/schemas/OAuthDiscovery"
 
   /oauth/clients:
     post:
@@ -477,20 +477,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientRegistrationRequest'
+              $ref: "#/components/schemas/ClientRegistrationRequest"
       responses:
-        '201':
+        "201":
           description: Client registered successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientRegistrationResponse'
-        '400':
+                $ref: "#/components/schemas/ClientRegistrationResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /oauth/clients/{client_id}:
     get:
@@ -508,18 +508,18 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Client details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientDetails'
-        '404':
+                $ref: "#/components/schemas/ClientDetails"
+        "404":
           description: Client not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /oauth/clients/{client_id}/secret:
     put:
@@ -559,46 +559,46 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientSecretRotationRequest'
+              $ref: "#/components/schemas/ClientSecretRotationRequest"
             example:
               current_secret: "550e8400-e29b-41d4-a716-446655440000"
       responses:
-        '200':
+        "200":
           description: Client secret rotated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientSecretRotationResponse'
+                $ref: "#/components/schemas/ClientSecretRotationResponse"
               example:
                 client_id: "550e8400-e29b-41d4-a716-446655440000"
                 new_secret: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
                 message: "Client secret rotated successfully. Store this secret securely - it will not be shown again."
-        '400':
+        "400":
           description: Invalid request (e.g., missing current secret)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "validation_error"
                 message: "current_secret is required"
                 timestamp: "2025-11-10T00:56:45Z"
-        '401':
+        "401":
           description: Unauthorized (invalid current secret or client not found)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "unauthorized"
-                message: "Failed to rotate secret: invalid credentials or client not found"  # pragma: allowlist secret
+                message: "Failed to rotate secret: invalid credentials or client not found" # pragma: allowlist secret
                 timestamp: "2025-11-10T00:56:45Z"
-        '404':
+        "404":
           description: Client not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
 
   /oauth2/userinfo:
     get:
@@ -610,18 +610,18 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: User information
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserInfo'
-        '401':
+                $ref: "#/components/schemas/UserInfo"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
     post:
       summary: User information endpoint (POST)
       description: Returns information about the authenticated user via POST
@@ -640,18 +640,18 @@ paths:
                   type: string
                   description: Access token (alternative to Authorization header)
       responses:
-        '200':
+        "200":
           description: User information
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserInfo'
-        '401':
+                $ref: "#/components/schemas/UserInfo"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OAuth2Error'
+                $ref: "#/components/schemas/OAuth2Error"
 
   /user-management/auth/register:
     post:
@@ -666,32 +666,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserRegistrationRequest'
+              $ref: "#/components/schemas/UserRegistrationRequest"
       responses:
-        '200':
+        "200":
           description: User registered successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserRegistrationResponse'
-        '400':
+                $ref: "#/components/schemas/UserRegistrationResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
-        '409':
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "409":
           description: User already exists
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
-        '422':
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
           description: Validation failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
+                $ref: "#/components/schemas/AuthErrorResponse"
 
   /user-management/auth/login:
     post:
@@ -706,26 +706,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserLoginRequest'
+              $ref: "#/components/schemas/UserLoginRequest"
       responses:
-        '200':
+        "200":
           description: Login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserLoginResponse'
-        '401':
+                $ref: "#/components/schemas/UserLoginResponse"
+        "401":
           description: Invalid credentials
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
-        '422':
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
           description: Validation failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
+                $ref: "#/components/schemas/AuthErrorResponse"
 
   /user-management/auth/logout:
     post:
@@ -737,18 +737,18 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Logout successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserLogoutResponse'
-        '401':
+                $ref: "#/components/schemas/UserLogoutResponse"
+        "401":
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
+                $ref: "#/components/schemas/AuthErrorResponse"
 
   /user-management/auth/refresh:
     post:
@@ -763,26 +763,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserRefreshRequest'
+              $ref: "#/components/schemas/UserRefreshRequest"
       responses:
-        '200':
+        "200":
           description: Token refreshed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserRefreshResponse'
-        '401':
+                $ref: "#/components/schemas/UserRefreshResponse"
+        "401":
           description: Invalid refresh token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
-        '422':
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
           description: Validation failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
+                $ref: "#/components/schemas/AuthErrorResponse"
 
   /user-management/auth/reset-password:
     post:
@@ -797,26 +797,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserPasswordResetRequest'
+              $ref: "#/components/schemas/UserPasswordResetRequest"
       responses:
-        '200':
+        "200":
           description: Password reset email sent
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserPasswordResetResponse'
-        '400':
+                $ref: "#/components/schemas/UserPasswordResetResponse"
+        "400":
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
-        '422':
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
           description: Validation failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
+                $ref: "#/components/schemas/AuthErrorResponse"
 
   /user-management/auth/reset-password/confirm:
     post:
@@ -831,26 +831,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserPasswordResetConfirmRequest'
+              $ref: "#/components/schemas/UserPasswordResetConfirmRequest"
       responses:
-        '200':
+        "200":
           description: Password reset successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserPasswordResetConfirmResponse'
-        '400':
+                $ref: "#/components/schemas/UserPasswordResetConfirmResponse"
+        "400":
           description: Invalid or expired token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
-        '422':
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
           description: Validation failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthErrorResponse'
+                $ref: "#/components/schemas/AuthErrorResponse"
 
 components:
   securitySchemes:
@@ -883,13 +883,13 @@ components:
           description: Health status of individual components
           properties:
             redis:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
             postgres:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
             mysql:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
             configuration:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
         details:
           type: object
           description: Additional health check details
@@ -932,11 +932,11 @@ components:
           description: Component readiness status
           properties:
             redis:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
             postgres:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
             mysql:
-              $ref: '#/components/schemas/ComponentHealth'
+              $ref: "#/components/schemas/ComponentHealth"
       required:
         - ready
         - timestamp
@@ -1370,7 +1370,7 @@ components:
           type: string
           minLength: 3
           maxLength: 50
-          pattern: '^[a-zA-Z0-9_-]+$'
+          pattern: "^[a-zA-Z0-9_-]+$"
         email:
           type: string
           format: email
@@ -1395,9 +1395,9 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         token:
-          $ref: '#/components/schemas/Token'
+          $ref: "#/components/schemas/Token"
           nullable: true
       required:
         - user
@@ -1421,9 +1421,9 @@ components:
       type: object
       properties:
         user:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         token:
-          $ref: '#/components/schemas/Token'
+          $ref: "#/components/schemas/Token"
       required:
         - user
         - token
@@ -1453,7 +1453,7 @@ components:
         message:
           type: string
         token:
-          $ref: '#/components/schemas/Token'
+          $ref: "#/components/schemas/Token"
       required:
         - message
         - token

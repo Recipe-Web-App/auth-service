@@ -10,28 +10,28 @@ metadata:
 data:
   # Environment Configuration
   # This determines which YAML config file to load (LOCAL, NONPROD, or PROD)
-  ENVIRONMENT: '${ENVIRONMENT}'
+  ENVIRONMENT: "${ENVIRONMENT}"
 
   # Server Configuration (Non-Sensitive)
-  SERVER_HOST: '${SERVER_HOST}'
-  SERVER_PORT: '${SERVER_PORT}'
+  SERVER_HOST: "${SERVER_HOST}"
+  SERVER_PORT: "${SERVER_PORT}"
 
   # Redis Configuration (Non-Sensitive)
-  REDIS_URL: '${REDIS_URL}'
-  REDIS_DB: '${REDIS_DB}'
+  REDIS_URL: "${REDIS_URL}"
+  REDIS_DB: "${REDIS_DB}"
 
   # PostgreSQL Database Configuration (Non-Sensitive)
-  POSTGRES_HOST: '${POSTGRES_HOST}'
-  POSTGRES_PORT: '${POSTGRES_PORT}'
-  POSTGRES_DB: '${POSTGRES_DB}'
-  POSTGRES_SCHEMA: '${POSTGRES_SCHEMA}'
-  POSTGRES_USER: '${POSTGRES_USER}'
+  POSTGRES_HOST: "${POSTGRES_HOST}"
+  POSTGRES_PORT: "${POSTGRES_PORT}"
+  POSTGRES_DB: "${POSTGRES_DB}"
+  POSTGRES_SCHEMA: "${POSTGRES_SCHEMA}"
+  POSTGRES_USER: "${POSTGRES_USER}"
 
   # MySQL Database Configuration (Non-Sensitive)
-  MYSQL_HOST: '${MYSQL_HOST}'
-  MYSQL_PORT: '${MYSQL_PORT}'
-  MYSQL_DB: '${MYSQL_DB}'
-  MYSQL_CLIENT_DB_USER: '${MYSQL_CLIENT_DB_USER}'
+  MYSQL_HOST: "${MYSQL_HOST}"
+  MYSQL_PORT: "${MYSQL_PORT}"
+  MYSQL_DB: "${MYSQL_DB}"
+  MYSQL_CLIENT_DB_USER: "${MYSQL_CLIENT_DB_USER}"
 
   # Auth Service Client Credentials (Non-Sensitive)
-  AUTH_SERVICE_CLIENT_ID: '${AUTH_SERVICE_CLIENT_ID}'
+  AUTH_SERVICE_CLIENT_ID: "${AUTH_SERVICE_CLIENT_ID}"

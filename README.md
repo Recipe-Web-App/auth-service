@@ -143,43 +143,43 @@ curl http://auth-service.local/api/v1/auth/health
 
 ### Core OAuth2 Specification Compliance
 
-| OAuth2/OIDC Feature | RFC | Implementation | Status |
-|---------------------|-----|----------------|--------|
-| **Authorization Code Flow** | RFC 6749 | Full implementation with user consent | ✅ |
-| **PKCE Extension** | RFC 7636 | Required for Authorization Code Flow | ✅ |
-| **Client Credentials Flow** | RFC 6749 | Service-to-service authentication | ✅ |
-| **Refresh Token Flow** | RFC 6749 | Token renewal with rotation | ✅ |
-| **Token Introspection** | RFC 7662 | Token validation endpoint | ✅ |
-| **Token Revocation** | RFC 7009 | Secure token invalidation | ✅ |
-| **Authorization Server Metadata** | RFC 8414 | Discovery endpoint | ✅ |
-| **OpenID Connect UserInfo** | OIDC Core | User profile endpoint | ✅ |
+| OAuth2/OIDC Feature               | RFC       | Implementation                        | Status |
+| --------------------------------- | --------- | ------------------------------------- | ------ |
+| **Authorization Code Flow**       | RFC 6749  | Full implementation with user consent | ✅     |
+| **PKCE Extension**                | RFC 7636  | Required for Authorization Code Flow  | ✅     |
+| **Client Credentials Flow**       | RFC 6749  | Service-to-service authentication     | ✅     |
+| **Refresh Token Flow**            | RFC 6749  | Token renewal with rotation           | ✅     |
+| **Token Introspection**           | RFC 7662  | Token validation endpoint             | ✅     |
+| **Token Revocation**              | RFC 7009  | Secure token invalidation             | ✅     |
+| **Authorization Server Metadata** | RFC 8414  | Discovery endpoint                    | ✅     |
+| **OpenID Connect UserInfo**       | OIDC Core | User profile endpoint                 | ✅     |
 
 ### Infrastructure & Production Readiness
 
-| Component | Feature | Status |
-|-----------|---------|--------|
-| **Storage** | PostgreSQL + Redis hybrid with graceful degradation | ✅ |
-| **User Management** | Database-first strategy with Redis caching | ✅ |
-| **Security** | Rate limiting, CORS, security headers | ✅ |
-| **Monitoring** | Health checks with degraded status, Prometheus metrics | ✅ |
-| **Logging** | Structured JSON logs with correlation IDs | ✅ |
-| **Configuration** | Environment-based with validation | ✅ |
-| **Deployment** | Docker, Kubernetes, automation scripts | ✅ |
-| **Client Management** | Dynamic registration, CLI tools | ✅ |
-| **Documentation** | API docs, OpenAPI spec, deployment guides | ✅ |
+| Component             | Feature                                                | Status |
+| --------------------- | ------------------------------------------------------ | ------ |
+| **Storage**           | PostgreSQL + Redis hybrid with graceful degradation    | ✅     |
+| **User Management**   | Database-first strategy with Redis caching             | ✅     |
+| **Security**          | Rate limiting, CORS, security headers                  | ✅     |
+| **Monitoring**        | Health checks with degraded status, Prometheus metrics | ✅     |
+| **Logging**           | Structured JSON logs with correlation IDs              | ✅     |
+| **Configuration**     | Environment-based with validation                      | ✅     |
+| **Deployment**        | Docker, Kubernetes, automation scripts                 | ✅     |
+| **Client Management** | Dynamic registration, CLI tools                        | ✅     |
+| **Documentation**     | API docs, OpenAPI spec, deployment guides              | ✅     |
 
 ### Security Implementation
 
-| Security Control | Implementation | Status |
-|------------------|----------------|--------|
-| **Authentication** | JWT access tokens, opaque refresh tokens | ✅ |
-| **Authorization** | Scope-based access control | ✅ |
-| **PKCE** | Code challenge validation | ✅ |
-| **Token Security** | Blacklisting, expiry, rotation | ✅ |
-| **Transport Security** | TLS/HTTPS support | ✅ |
-| **Input Validation** | Comprehensive request sanitization | ✅ |
-| **Rate Protection** | Per-client and per-IP limiting | ✅ |
-| **CORS** | Configurable cross-origin policies | ✅ |
+| Security Control       | Implementation                           | Status |
+| ---------------------- | ---------------------------------------- | ------ |
+| **Authentication**     | JWT access tokens, opaque refresh tokens | ✅     |
+| **Authorization**      | Scope-based access control               | ✅     |
+| **PKCE**               | Code challenge validation                | ✅     |
+| **Token Security**     | Blacklisting, expiry, rotation           | ✅     |
+| **Transport Security** | TLS/HTTPS support                        | ✅     |
+| **Input Validation**   | Comprehensive request sanitization       | ✅     |
+| **Rate Protection**    | Per-client and per-IP limiting           | ✅     |
+| **CORS**               | Configurable cross-origin policies       | ✅     |
 
 **🚀 No additional implementation work needed - ready for production deployment!**
 
@@ -218,30 +218,30 @@ curl -X POST https://auth.example.com/oauth2/token \
 
 ### OAuth2 & OpenID Connect
 
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/v1/auth/oauth2/authorize` | GET/POST | Authorization endpoint (PKCE flow) | ✅ |
-| `/api/v1/auth/oauth2/token` | POST | Token endpoint (all flows) | ✅ |
-| `/api/v1/auth/oauth2/introspect` | POST | Token introspection (RFC 7662) | ✅ |
-| `/api/v1/auth/oauth2/revoke` | POST | Token revocation (RFC 7009) | ✅ |
-| `/api/v1/auth/oauth2/userinfo` | GET/POST | OpenID Connect UserInfo | ✅ |
-| `/api/v1/auth/.well-known/oauth-authorization-server` | GET | OAuth2 discovery metadata | ✅ |
+| Endpoint                                              | Method   | Description                        | Status |
+| ----------------------------------------------------- | -------- | ---------------------------------- | ------ |
+| `/api/v1/auth/oauth2/authorize`                       | GET/POST | Authorization endpoint (PKCE flow) | ✅     |
+| `/api/v1/auth/oauth2/token`                           | POST     | Token endpoint (all flows)         | ✅     |
+| `/api/v1/auth/oauth2/introspect`                      | POST     | Token introspection (RFC 7662)     | ✅     |
+| `/api/v1/auth/oauth2/revoke`                          | POST     | Token revocation (RFC 7009)        | ✅     |
+| `/api/v1/auth/oauth2/userinfo`                        | GET/POST | OpenID Connect UserInfo            | ✅     |
+| `/api/v1/auth/.well-known/oauth-authorization-server` | GET      | OAuth2 discovery metadata          | ✅     |
 
 ### Client Management
 
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/v1/auth/oauth/clients` | POST | Register new OAuth2 client | ✅ |
-| `/api/v1/auth/oauth/clients/{id}` | GET | Get client information | ✅ |
+| Endpoint                          | Method | Description                | Status |
+| --------------------------------- | ------ | -------------------------- | ------ |
+| `/api/v1/auth/oauth/clients`      | POST   | Register new OAuth2 client | ✅     |
+| `/api/v1/auth/oauth/clients/{id}` | GET    | Get client information     | ✅     |
 
 ### Monitoring & Health
 
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/v1/auth/health` | GET | Overall health check | ✅ |
-| `/api/v1/auth/health/ready` | GET | Readiness probe | ✅ |
-| `/api/v1/auth/health/live` | GET | Liveness probe | ✅ |
-| `/api/v1/auth/metrics` | GET | Prometheus metrics | ✅ |
+| Endpoint                    | Method | Description          | Status |
+| --------------------------- | ------ | -------------------- | ------ |
+| `/api/v1/auth/health`       | GET    | Overall health check | ✅     |
+| `/api/v1/auth/health/ready` | GET    | Readiness probe      | ✅     |
+| `/api/v1/auth/health/live`  | GET    | Liveness probe       | ✅     |
+| `/api/v1/auth/metrics`      | GET    | Prometheus metrics   | ✅     |
 
 **Legend**: ✅ Implemented and Production Ready
 
@@ -427,18 +427,18 @@ See [Deployment Guide](docs/DEPLOYMENT.md) and [k8s/README.md](k8s/README.md) fo
 
 ### ✅ Implemented Security Controls
 
-| Security Feature | Implementation | Status |
-|------------------|----------------|--------|
-| **PKCE (RFC 7636)** | Required for Authorization Code Flow | ✅ |
-| **Token Blacklisting** | Revoked tokens tracked in Redis | ✅ |
-| **Rate Limiting** | Per-IP and per-client limits | ✅ |
-| **CORS Protection** | Configurable cross-origin policies | ✅ |
-| **Security Headers** | CSP, HSTS, X-Frame-Options, etc. | ✅ |
-| **Input Validation** | All requests validated and sanitized | ✅ |
-| **JWT Signing** | Configurable algorithms (HS256, RS256, etc.) | ✅ |
-| **Secure Random** | Cryptographically secure token generation | ✅ |
-| **TLS Support** | HTTPS with configurable certificates | ✅ |
-| **Audit Logging** | Security events and authentication attempts | ✅ |
+| Security Feature       | Implementation                               | Status |
+| ---------------------- | -------------------------------------------- | ------ |
+| **PKCE (RFC 7636)**    | Required for Authorization Code Flow         | ✅     |
+| **Token Blacklisting** | Revoked tokens tracked in Redis              | ✅     |
+| **Rate Limiting**      | Per-IP and per-client limits                 | ✅     |
+| **CORS Protection**    | Configurable cross-origin policies           | ✅     |
+| **Security Headers**   | CSP, HSTS, X-Frame-Options, etc.             | ✅     |
+| **Input Validation**   | All requests validated and sanitized         | ✅     |
+| **JWT Signing**        | Configurable algorithms (HS256, RS256, etc.) | ✅     |
+| **Secure Random**      | Cryptographically secure token generation    | ✅     |
+| **TLS Support**        | HTTPS with configurable certificates         | ✅     |
+| **Audit Logging**      | Security events and authentication attempts  | ✅     |
 
 ### Security Best Practices
 

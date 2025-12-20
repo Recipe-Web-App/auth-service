@@ -60,3 +60,6 @@ tmp/
 # Coverage reports
 coverage/
 gosec-report.json
+
+# Pre-Commit cache
+node_modules/

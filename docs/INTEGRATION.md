@@ -204,7 +204,7 @@ const codeVerifier = generateRandomString(128);
 
 // Generate code challenge (SHA256 hash of verifier, base64url encoded)
 const codeChallenge = base64UrlEncode(sha256(codeVerifier));
-const codeChallengeMethod = 'S256';
+const codeChallengeMethod = "S256";
 ```
 
 #### Step 2: Authorization Request
@@ -500,19 +500,19 @@ Access tokens are signed JWTs containing:
 **Client-side validation example (Node.js):**
 
 ```javascript
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 
 function validateAccessToken(token, secret) {
   try {
     const decoded = jwt.verify(token, secret);
 
-    if (decoded.type !== 'access_token') {
-      throw new Error('Invalid token type');
+    if (decoded.type !== "access_token") {
+      throw new Error("Invalid token type");
     }
 
     return decoded;
   } catch (error) {
-    throw new Error('Token validation failed: ' + error.message);
+    throw new Error("Token validation failed: " + error.message);
   }
 }
 ```
@@ -777,22 +777,22 @@ JWT_SECRET=very-long-random-secret-key-for-production-use-minimum-32-characters 
 
 ```javascript
 // crypto-utils.js
-import crypto from 'crypto';
+import crypto from "crypto";
 
 export function generateCodeVerifier() {
   return base64UrlEncode(crypto.randomBytes(96));
 }
 
 export function generateCodeChallenge(verifier) {
-  return base64UrlEncode(crypto.createHash('sha256').update(verifier).digest());
+  return base64UrlEncode(crypto.createHash("sha256").update(verifier).digest());
 }
 
 function base64UrlEncode(buffer) {
   return buffer
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 ```
 
@@ -916,7 +916,7 @@ if (code) {
 
 ```jsx
 // AuthProvider.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
 
@@ -928,12 +928,12 @@ export function AuthProvider({ children }) {
     clientId: process.env.REACT_APP_CLIENT_ID,
     clientSecret: process.env.REACT_APP_CLIENT_SECRET,
     redirectUri: `${window.location.origin}/callback`,
-    authBaseUrl: process.env.REACT_APP_AUTH_BASE_URL
+    authBaseUrl: process.env.REACT_APP_AUTH_BASE_URL,
   });
 
   useEffect(() => {
     // Check for stored tokens on mount
-    const storedTokens = localStorage.getItem('auth_tokens');
+    const storedTokens = localStorage.getItem("auth_tokens");
     if (storedTokens) {
       setTokens(JSON.parse(storedTokens));
     }
@@ -948,20 +948,20 @@ export function AuthProvider({ children }) {
     if (tokens?.access_token) {
       // Revoke tokens
       await fetch(`${process.env.REACT_APP_AUTH_BASE_URL}/oauth2/revoke`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
           token: tokens.access_token,
           client_id: process.env.REACT_APP_CLIENT_ID,
-          client_secret: process.env.REACT_APP_CLIENT_SECRET
-        })
+          client_secret: process.env.REACT_APP_CLIENT_SECRET,
+        }),
       });
     }
 
     setTokens(null);
-    localStorage.removeItem('auth_tokens');
+    localStorage.removeItem("auth_tokens");
   };
 
   const refreshAccessToken = async () => {
@@ -970,24 +970,26 @@ export function AuthProvider({ children }) {
     try {
       const newTokens = await authClient.refreshToken(tokens.refresh_token);
       setTokens(newTokens);
-      localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
+      localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
       return newTokens.access_token;
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error("Token refresh failed:", error);
       logout();
       return null;
     }
   };
 
   return (
-    <AuthContext.Provider value={{
-      tokens,
-      loading,
-      login,
-      logout,
-      refreshAccessToken,
-      isAuthenticated: !!tokens?.access_token
-    }}>
+    <AuthContext.Provider
+      value={{
+        tokens,
+        loading,
+        login,
+        logout,
+        refreshAccessToken,
+        isAuthenticated: !!tokens?.access_token,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -1502,15 +1504,16 @@ function generateCodeVerifier() {
 function generateCodeChallenge(verifier) {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
-  return crypto.subtle.digest('SHA-256', data)
-    .then(hash => base64UrlEncode(new Uint8Array(hash)));
+  return crypto.subtle
+    .digest("SHA-256", data)
+    .then((hash) => base64UrlEncode(new Uint8Array(hash)));
 }
 
 function base64UrlEncode(array) {
   return btoa(String.fromCharCode(...array))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 ```
 
@@ -1522,7 +1525,7 @@ function base64UrlEncode(array) {
 
 ```javascript
 // ❌ Wrong: Using different secret
-jwt.verify(token, 'wrong-secret');
+jwt.verify(token, "wrong-secret");
 
 // ✅ Correct: Using same secret as server
 jwt.verify(token, process.env.JWT_SECRET);
@@ -1532,8 +1535,8 @@ const decoded = jwt.verify(token, secret);
 
 // ✅ Correct: Validating token type
 const decoded = jwt.verify(token, secret);
-if (decoded.type !== 'access_token') {
-  throw new Error('Invalid token type');
+if (decoded.type !== "access_token") {
+  throw new Error("Invalid token type");
 }
 ```
 
@@ -1545,18 +1548,18 @@ if (decoded.type !== 'access_token') {
 
 ```javascript
 // ❌ Wrong: Missing credentials
-fetch('/api/v1/auth/oauth2/token', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  body: data
+fetch("/api/v1/auth/oauth2/token", {
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  body: data,
 });
 
 // ✅ Correct: Including credentials
-fetch('/api/v1/auth/oauth2/token', {
-  method: 'POST',
-  credentials: 'include',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  body: data
+fetch("/api/v1/auth/oauth2/token", {
+  method: "POST",
+  credentials: "include",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  body: data,
 });
 ```
 
@@ -1592,10 +1595,9 @@ class TokenManager {
       return this.refreshPromise;
     }
 
-    this.refreshPromise = this.refreshToken()
-      .finally(() => {
-        this.refreshPromise = null;
-      });
+    this.refreshPromise = this.refreshToken().finally(() => {
+      this.refreshPromise = null;
+    });
 
     return this.refreshPromise;
   }
@@ -1603,7 +1605,7 @@ class TokenManager {
   isTokenExpired(token) {
     if (!token) return true;
 
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const payload = JSON.parse(atob(token.split(".")[1]));
     return payload.exp * 1000 < Date.now() + 30000; // 30s buffer
   }
 }
@@ -1676,7 +1678,7 @@ When PostgreSQL is unavailable, the following endpoints return HTTP 503:
 - ✅ Service continues running (health endpoint returns 200 "degraded")
 - ✅ OAuth2 flows remain fully functional (Redis-based)
 - ✅ Token operations (refresh, revoke, introspect) work normally
-- ⚠️  User management operations return 503 until database is restored
+- ⚠️ User management operations return 503 until database is restored
 - ✅ Background reconnection attempts continue automatically
 
 **Common Database Issues:**
@@ -1725,8 +1727,8 @@ curl http://localhost:8080/api/v1/auth/health/ready
 The service automatically falls back to in-memory storage if Redis is unavailable. This fallback:
 
 - ✅ Allows service to continue running
-- ⚠️  Data is not persisted between restarts
-- ⚠️  No shared state in multi-instance deployments
+- ⚠️ Data is not persisted between restarts
+- ⚠️ No shared state in multi-instance deployments
 
 ### Debug Mode
 

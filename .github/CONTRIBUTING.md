@@ -345,17 +345,17 @@ run:
 
 linters:
   enable:
-    - gosec       # Security issues
-    - govet       # Go vet
+    - gosec # Security issues
+    - govet # Go vet
     - ineffassign # Ineffectual assignments
-    - misspell    # Spelling mistakes
-    - gofmt       # Formatting
-    - goimports   # Import formatting
-    - gocritic    # Code critique
-    - revive      # Replacement for golint
+    - misspell # Spelling mistakes
+    - gofmt # Formatting
+    - goimports # Import formatting
+    - gocritic # Code critique
+    - revive # Replacement for golint
     - staticcheck # Static analysis
-    - unused      # Unused code
-    - errcheck    # Unchecked errors
+    - unused # Unused code
+    - errcheck # Unchecked errors
 
 linters-settings:
   gosec:

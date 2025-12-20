@@ -4,10 +4,10 @@
 
 We release security updates for the following versions:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| latest  | :white_check_mark: |
-| < latest| :x:                |
+| Version  | Supported          |
+| -------- | ------------------ |
+| latest   | :white_check_mark: |
+| < latest | :x:                |
 
 We recommend always running the latest version for security patches.
 

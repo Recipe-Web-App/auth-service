@@ -9,7 +9,7 @@ dependencies:
 
 # Documentation
 documentation:
-  - '**/*.md'
+  - "**/*.md"
   - docs/**/*
   - CLAUDE.md
   - README.md
@@ -30,21 +30,21 @@ docker:
 
 # Configuration
 configuration:
-  - '**/*.yml'
-  - '**/*.yaml'
-  - '**/*.json'
+  - "**/*.yml"
+  - "**/*.yaml"
+  - "**/*.json"
   - .env.example
 
 # Source code
 go:
-  - '**/*.go'
+  - "**/*.go"
   - cmd/**/*
   - internal/**/*
   - pkg/**/*
 
 # Tests
 tests:
-  - '**/*_test.go'
+  - "**/*_test.go"
 
 # Database
 database:
@@ -68,9 +68,9 @@ middleware:
 # Scripts
 scripts:
   - scripts/**/*
-  - '**/*.sh'
+  - "**/*.sh"
 
 # Kubernetes
 kubernetes:
   - k8s/**/*
-  - '**/*.yaml'
+  - "**/*.yaml"

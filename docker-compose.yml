@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   auth-service:
@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
       target: production
     ports:
-      - '8080:8080'
+      - "8080:8080"
     environment:
       # Environment determines which YAML config to load (LOCAL, NONPROD, PROD)
       - ENVIRONMENT=PROD
@@ -16,10 +16,10 @@ services:
       - SERVER_PORT=8080
       # Redis connection
       - REDIS_URL=redis://redis:6379
-      - REDIS_PASSWORD=auth-redis-password  # pragma: allowlist secret
+      - REDIS_PASSWORD=auth-redis-password # pragma: allowlist secret
       - REDIS_DB=0
       # JWT Secret (REQUIRED - minimum 32 characters)
-      - JWT_SECRET=production-jwt-secret-change-this-minimum-32-chars  # pragma: allowlist secret
+      - JWT_SECRET=production-jwt-secret-change-this-minimum-32-chars # pragma: allowlist secret
       # Note: Operational settings (CORS, rate limits, logging) are in configs/prod.yaml
     depends_on:
       redis:
@@ -28,7 +28,8 @@ services:
       - auth-network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8080/api/v1/auth/health/live']
+      test:
+        ["CMD", "curl", "-f", "http://localhost:8080/api/v1/auth/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -37,14 +38,14 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
       - auth-network
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3

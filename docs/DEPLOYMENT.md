@@ -261,10 +261,10 @@ See [k8s/README.md](../k8s/README.md) for complete configuration reference inclu
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: 'oauth2-auth-service'
+  - job_name: "oauth2-auth-service"
     static_configs:
-      - targets: ['oauth2-auth-service:8080']
-    metrics_path: '/api/v1/auth/metrics'
+      - targets: ["oauth2-auth-service:8080"]
+    metrics_path: "/api/v1/auth/metrics"
     scrape_interval: 30s
 ```
 

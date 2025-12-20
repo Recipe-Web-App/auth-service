@@ -375,31 +375,36 @@ const codeVerifier = generateCodeVerifier();
 const codeChallenge = await generateCodeChallenge(codeVerifier);
 
 // Redirect to authorization endpoint
-const authUrl = new URL('https://auth.example.com/api/v1/auth/oauth2/authorize');
-authUrl.searchParams.set('response_type', 'code');
-authUrl.searchParams.set('client_id', 'my-client');
-authUrl.searchParams.set('redirect_uri', 'https://app.example.com/callback');
-authUrl.searchParams.set('scope', 'read write');
-authUrl.searchParams.set('state', generateState());
-authUrl.searchParams.set('code_challenge', codeChallenge);
-authUrl.searchParams.set('code_challenge_method', 'S256');
+const authUrl = new URL(
+  "https://auth.example.com/api/v1/auth/oauth2/authorize",
+);
+authUrl.searchParams.set("response_type", "code");
+authUrl.searchParams.set("client_id", "my-client");
+authUrl.searchParams.set("redirect_uri", "https://app.example.com/callback");
+authUrl.searchParams.set("scope", "read write");
+authUrl.searchParams.set("state", generateState());
+authUrl.searchParams.set("code_challenge", codeChallenge);
+authUrl.searchParams.set("code_challenge_method", "S256");
 
 window.location.href = authUrl.toString();
 
 // Exchange code for tokens (in callback handler)
-const tokenResponse = await fetch('https://auth.example.com/api/v1/auth/oauth2/token', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded',
+const tokenResponse = await fetch(
+  "https://auth.example.com/api/v1/auth/oauth2/token",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: authorizationCode,
+      redirect_uri: "https://app.example.com/callback",
+      client_id: "my-client",
+      code_verifier: codeVerifier,
+    }),
   },
-  body: new URLSearchParams({
-    grant_type: 'authorization_code',
-    code: authorizationCode,
-    redirect_uri: 'https://app.example.com/callback',
-    client_id: 'my-client',
-    code_verifier: codeVerifier,
-  }),
-});
+);
 
 const tokens = await tokenResponse.json();
 ```

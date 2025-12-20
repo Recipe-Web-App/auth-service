@@ -3,21 +3,21 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: "1.24"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 permissions:
   contents: write
   packages: write
-  id-token: write  # For SBOM attestations
+  id-token: write # For SBOM attestations
 
 jobs:
   create-release:
@@ -28,65 +28,65 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-    - name: Get version
-      id: get_version
-      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Get version
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-    - name: Generate changelog
-      id: changelog
-      run: |
-        if [[ ${{ steps.get_version.outputs.version }} == v*.*.* ]]; then
-          # Get the previous tag
-          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
-          if [ -n "$PREV_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [[ ${{ steps.get_version.outputs.version }} == v*.*.* ]]; then
+            # Get the previous tag
+            PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
+            if [ -n "$PREV_TAG" ]; then
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+            else
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)")
+            fi
           else
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)")
+            CHANGELOG="Pre-release version"
           fi
-        else
-          CHANGELOG="Pre-release version"
-        fi
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        echo "$CHANGELOG" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        name: Release ${{ steps.get_version.outputs.version }}
-        body: |
-          ## Changes
-          ${{ steps.changelog.outputs.changelog }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          body: |
+            ## Changes
+            ${{ steps.changelog.outputs.changelog }}
 
-          ## Installation
+            ## Installation
 
-          Download the appropriate binary for your platform from the assets below.
+            Download the appropriate binary for your platform from the assets below.
 
-          ### Linux/macOS
-          ```bash
-          tar -xzf auth-service-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz
-          chmod +x auth-service
-          ./auth-service
-          ```
+            ### Linux/macOS
+            ```bash
+            tar -xzf auth-service-${{ steps.get_version.outputs.version }}-linux-amd64.tar.gz
+            chmod +x auth-service
+            ./auth-service
+            ```
 
-          ### Windows
-          ```powershell
-          Expand-Archive auth-service-${{ steps.get_version.outputs.version }}-windows-amd64.zip
-          ```
+            ### Windows
+            ```powershell
+            Expand-Archive auth-service-${{ steps.get_version.outputs.version }}-windows-amd64.zip
+            ```
 
-          ## Docker
-          ```bash
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.version }}
-          ```
-        draft: false
-        prerelease: ${{ contains(steps.get_version.outputs.version, '-') }}
-        generate_release_notes: true
+            ## Docker
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.version }}
+            ```
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.version, '-') }}
+          generate_release_notes: true
 
   build-binaries:
     name: Build Binaries
@@ -102,51 +102,51 @@ jobs:
             goarch: arm64
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        cache: true
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-    - name: Build binary
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0
-        VERSION: ${{ needs.create-release.outputs.version }}
-      run: |
-        BINARY_NAME=auth-service
-        if [ "$GOOS" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-        fi
-        ARCHIVE_NAME="auth-service-${VERSION}-${GOOS}-${GOARCH}"
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          BINARY_NAME=auth-service
+          if [ "$GOOS" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+          ARCHIVE_NAME="auth-service-${VERSION}-${GOOS}-${GOARCH}"
 
-        go build -ldflags="-w -s -X main.version=${VERSION}" -o ${BINARY_NAME} ./cmd/server
+          go build -ldflags="-w -s -X main.version=${VERSION}" -o ${BINARY_NAME} ./cmd/server
 
-        # Create archive
-        if [ "$GOOS" = "windows" ]; then
-          zip "${ARCHIVE_NAME}.zip" ${BINARY_NAME}
-          ARCHIVE_FILE="${ARCHIVE_NAME}.zip"
-        else
-          tar -czf "${ARCHIVE_NAME}.tar.gz" ${BINARY_NAME}
-          ARCHIVE_FILE="${ARCHIVE_NAME}.tar.gz"
-        fi
+          # Create archive
+          if [ "$GOOS" = "windows" ]; then
+            zip "${ARCHIVE_NAME}.zip" ${BINARY_NAME}
+            ARCHIVE_FILE="${ARCHIVE_NAME}.zip"
+          else
+            tar -czf "${ARCHIVE_NAME}.tar.gz" ${BINARY_NAME}
+            ARCHIVE_FILE="${ARCHIVE_NAME}.tar.gz"
+          fi
 
-        # Generate checksums
-        sha256sum ${ARCHIVE_FILE} > ${ARCHIVE_FILE}.sha256
+          # Generate checksums
+          sha256sum ${ARCHIVE_FILE} > ${ARCHIVE_FILE}.sha256
 
-        echo "ARCHIVE_FILE=${ARCHIVE_FILE}" >> $GITHUB_ENV
+          echo "ARCHIVE_FILE=${ARCHIVE_FILE}" >> $GITHUB_ENV
 
-    - name: Upload release assets
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ needs.create-release.outputs.version }}
-        files: |
-          auth-service-*
-          *.sha256
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            auth-service-*
+            *.sha256
 
   build-sbom:
     name: Generate SBOM
@@ -154,27 +154,27 @@ jobs:
     needs: create-release
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Set up Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        cache: true
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-    - name: Generate SBOM with syft
-      uses: anchore/sbom-action@v0
-      with:
-        artifact-name: auth-service-sbom.spdx.json
-        output-file: auth-service-sbom.spdx.json
-        format: spdx-json
+      - name: Generate SBOM with syft
+        uses: anchore/sbom-action@v0
+        with:
+          artifact-name: auth-service-sbom.spdx.json
+          output-file: auth-service-sbom.spdx.json
+          format: spdx-json
 
-    - name: Upload SBOM to release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ needs.create-release.outputs.version }}
-        files: auth-service-sbom.spdx.json
+      - name: Upload SBOM to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: auth-service-sbom.spdx.json
 
   docker:
     name: Build and Push Docker Image
@@ -182,68 +182,68 @@ jobs:
     needs: create-release
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=tag
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=sha,prefix={{branch}}-
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
 
-    - name: Build and push Docker image
-      id: push
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        build-args: |
-          VERSION=${{ needs.create-release.outputs.version }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.create-release.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-    - name: Generate SBOM for Docker image
-      uses: anchore/sbom-action@v0
-      with:
-        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.create-release.outputs.version }}
-        artifact-name: docker-sbom.spdx.json
-        output-file: docker-sbom.spdx.json
+      - name: Generate SBOM for Docker image
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.create-release.outputs.version }}
+          artifact-name: docker-sbom.spdx.json
+          output-file: docker-sbom.spdx.json
 
-    - name: Scan Docker image with Trivy
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.create-release.outputs.version }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH'
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.create-release.outputs.version }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
 
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
 
-    - name: Upload Docker SBOM to release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ needs.create-release.outputs.version }}
-        files: docker-sbom.spdx.json
+      - name: Upload Docker SBOM to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: docker-sbom.spdx.json

@@ -254,27 +254,27 @@ func makeAuthenticatedRequest(token, url string) error {
 
 ```javascript
 // Node.js example
-const axios = require('axios');
+const axios = require("axios");
 
 async function getAccessToken(clientId, clientSecret, authUrl) {
-    const data = new URLSearchParams();
-    data.append('grant_type', 'client_credentials');
-    data.append('client_id', clientId);
-    data.append('client_secret', clientSecret);
-    data.append('scope', 'read write');
+  const data = new URLSearchParams();
+  data.append("grant_type", "client_credentials");
+  data.append("client_id", clientId);
+  data.append("client_secret", clientSecret);
+  data.append("scope", "read write");
 
-    const response = await axios.post(`${authUrl}/api/v1/auth/oauth/token`, data);
-    return response.data.access_token;
+  const response = await axios.post(`${authUrl}/api/v1/auth/oauth/token`, data);
+  return response.data.access_token;
 }
 
 // Use token in requests
 async function makeAuthenticatedRequest(token, url) {
-    const response = await axios.get(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    });
-    return response.data;
+  const response = await axios.get(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
 }
 ```
 

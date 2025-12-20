@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
         type: choice
         options:
@@ -13,7 +13,7 @@ on:
           - staging
           - production
       image_tag:
-        description: 'Docker image tag to deploy (leave empty for latest)'
+        description: "Docker image tag to deploy (leave empty for latest)"
         required: false
         type: string
 
@@ -44,19 +44,19 @@ jobs:
       image_tag: ${{ steps.set-env.outputs.image_tag }}
 
     steps:
-    - name: Set environment
-      id: set-env
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          echo "image_tag=${{ github.event.inputs.image_tag || 'latest' }}" >> $GITHUB_OUTPUT
-        elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
-          echo "environment=development" >> $GITHUB_OUTPUT
-          echo "image_tag=latest" >> $GITHUB_OUTPUT
-        elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-          echo "environment=staging" >> $GITHUB_OUTPUT
-          echo "image_tag=latest" >> $GITHUB_OUTPUT
-        fi
+      - name: Set environment
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "image_tag=${{ github.event.inputs.image_tag || 'latest' }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            echo "environment=development" >> $GITHUB_OUTPUT
+            echo "image_tag=latest" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "image_tag=latest" >> $GITHUB_OUTPUT
+          fi
 
   validate:
     name: Validate Manifests
@@ -64,23 +64,23 @@ jobs:
     needs: determine-environment
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Validate Kubernetes manifests
-      run: |
-        # Install kubeval for manifest validation
-        wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
-        tar xf kubeval-linux-amd64.tar.gz
-        sudo mv kubeval /usr/local/bin
+      - name: Validate Kubernetes manifests
+        run: |
+          # Install kubeval for manifest validation
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo mv kubeval /usr/local/bin
 
-        # Validate all k8s manifests
-        for file in k8s/*.yaml; do
-          if [[ "$file" != *"template"* ]]; then
-            echo "Validating $file..."
-            kubeval "$file" || exit 1
-          fi
-        done
+          # Validate all k8s manifests
+          for file in k8s/*.yaml; do
+            if [[ "$file" != *"template"* ]]; then
+              echo "Validating $file..."
+              kubeval "$file" || exit 1
+            fi
+          done
 
   deploy:
     name: Deploy to ${{ needs.determine-environment.outputs.environment }}
@@ -91,116 +91,116 @@ jobs:
       url: ${{ steps.get-url.outputs.url }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v4
-      with:
-        version: 'latest'
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "latest"
 
-    - name: Configure kubectl
-      env:
-        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
-      run: |
-        mkdir -p $HOME/.kube
-        echo "$KUBE_CONFIG_DATA" | base64 -d > $HOME/.kube/config
-        chmod 600 $HOME/.kube/config
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBE_CONFIG_DATA" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
 
-    - name: Set namespace
-      id: namespace
-      run: |
-        NAMESPACE="${{ secrets.KUBE_NAMESPACE }}"
-        if [ -z "$NAMESPACE" ]; then
-          NAMESPACE="auth-service"
-        fi
-        echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
-        echo "Using namespace: $NAMESPACE"
-
-    - name: Create namespace if not exists
-      run: |
-        kubectl create namespace ${{ steps.namespace.outputs.namespace }} --dry-run=client -o yaml | kubectl apply -f -
-
-    - name: Create ConfigMap
-      env:
-        ENVIRONMENT: ${{ needs.determine-environment.outputs.environment }}
-      run: |
-        # Generate ConfigMap from template
-        envsubst < k8s/configmap-template.yaml | kubectl apply -n ${{ steps.namespace.outputs.namespace }} -f -
-
-    - name: Create/Update Secrets
-      env:
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      run: |
-        # Create secrets from template
-        # Note: In production, use external secrets management (e.g., Sealed Secrets, External Secrets Operator)
-        kubectl create secret generic auth-service-secrets \
-          --from-literal=jwt-secret="${JWT_SECRET}" \
-          --from-literal=redis-password="${REDIS_PASSWORD}" \
-          --from-literal=db-password="${DB_PASSWORD}" \
-          --namespace=${{ steps.namespace.outputs.namespace }} \
-          --dry-run=client -o yaml | kubectl apply -f -
-
-    - name: Update deployment image
-      run: |
-        IMAGE_TAG="${{ needs.determine-environment.outputs.image_tag }}"
-        IMAGE="ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
-
-        echo "Deploying image: $IMAGE"
-
-        # Update deployment with new image
-        kubectl set image deployment/auth-service \
-          auth-service=$IMAGE \
-          -n ${{ steps.namespace.outputs.namespace }}
-
-    - name: Apply Kubernetes manifests
-      run: |
-        # Apply all manifests except templates
-        for file in k8s/*.yaml; do
-          if [[ "$file" != *"template"* ]]; then
-            echo "Applying $file..."
-            kubectl apply -f "$file" -n ${{ steps.namespace.outputs.namespace }}
+      - name: Set namespace
+        id: namespace
+        run: |
+          NAMESPACE="${{ secrets.KUBE_NAMESPACE }}"
+          if [ -z "$NAMESPACE" ]; then
+            NAMESPACE="auth-service"
           fi
-        done
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+          echo "Using namespace: $NAMESPACE"
 
-    - name: Wait for rollout to complete
-      run: |
-        kubectl rollout status deployment/auth-service \
-          -n ${{ steps.namespace.outputs.namespace }} \
-          --timeout=5m
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ steps.namespace.outputs.namespace }} --dry-run=client -o yaml | kubectl apply -f -
 
-    - name: Get deployment URL
-      id: get-url
-      run: |
-        # Try to get ingress URL
-        INGRESS_URL=$(kubectl get ingress -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.items[0].spec.rules[0].host}' 2>/dev/null || echo "")
+      - name: Create ConfigMap
+        env:
+          ENVIRONMENT: ${{ needs.determine-environment.outputs.environment }}
+        run: |
+          # Generate ConfigMap from template
+          envsubst < k8s/configmap-template.yaml | kubectl apply -n ${{ steps.namespace.outputs.namespace }} -f -
 
-        if [ -n "$INGRESS_URL" ]; then
-          echo "url=https://$INGRESS_URL" >> $GITHUB_OUTPUT
-        else
-          # Fallback to service
-          SERVICE_URL=$(kubectl get svc auth-service -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
-          if [ -n "$SERVICE_URL" ]; then
-            echo "url=http://$SERVICE_URL" >> $GITHUB_OUTPUT
+      - name: Create/Update Secrets
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          # Create secrets from template
+          # Note: In production, use external secrets management (e.g., Sealed Secrets, External Secrets Operator)
+          kubectl create secret generic auth-service-secrets \
+            --from-literal=jwt-secret="${JWT_SECRET}" \
+            --from-literal=redis-password="${REDIS_PASSWORD}" \
+            --from-literal=db-password="${DB_PASSWORD}" \
+            --namespace=${{ steps.namespace.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Update deployment image
+        run: |
+          IMAGE_TAG="${{ needs.determine-environment.outputs.image_tag }}"
+          IMAGE="ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
+
+          echo "Deploying image: $IMAGE"
+
+          # Update deployment with new image
+          kubectl set image deployment/auth-service \
+            auth-service=$IMAGE \
+            -n ${{ steps.namespace.outputs.namespace }}
+
+      - name: Apply Kubernetes manifests
+        run: |
+          # Apply all manifests except templates
+          for file in k8s/*.yaml; do
+            if [[ "$file" != *"template"* ]]; then
+              echo "Applying $file..."
+              kubectl apply -f "$file" -n ${{ steps.namespace.outputs.namespace }}
+            fi
+          done
+
+      - name: Wait for rollout to complete
+        run: |
+          kubectl rollout status deployment/auth-service \
+            -n ${{ steps.namespace.outputs.namespace }} \
+            --timeout=5m
+
+      - name: Get deployment URL
+        id: get-url
+        run: |
+          # Try to get ingress URL
+          INGRESS_URL=$(kubectl get ingress -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.items[0].spec.rules[0].host}' 2>/dev/null || echo "")
+
+          if [ -n "$INGRESS_URL" ]; then
+            echo "url=https://$INGRESS_URL" >> $GITHUB_OUTPUT
           else
-            echo "url=Service deployed to namespace ${{ steps.namespace.outputs.namespace }}" >> $GITHUB_OUTPUT
+            # Fallback to service
+            SERVICE_URL=$(kubectl get svc auth-service -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            if [ -n "$SERVICE_URL" ]; then
+              echo "url=http://$SERVICE_URL" >> $GITHUB_OUTPUT
+            else
+              echo "url=Service deployed to namespace ${{ steps.namespace.outputs.namespace }}" >> $GITHUB_OUTPUT
+            fi
           fi
-        fi
 
-    - name: Display deployment info
-      run: |
-        echo "=== Deployment Summary ==="
-        echo "Environment: ${{ needs.determine-environment.outputs.environment }}"
-        echo "Namespace: ${{ steps.namespace.outputs.namespace }}"
-        echo "Image: ghcr.io/${{ github.repository }}:${{ needs.determine-environment.outputs.image_tag }}"
-        echo ""
-        echo "=== Pods ==="
-        kubectl get pods -n ${{ steps.namespace.outputs.namespace }} -l app=auth-service
-        echo ""
-        echo "=== Services ==="
-        kubectl get svc -n ${{ steps.namespace.outputs.namespace }}
+      - name: Display deployment info
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Environment: ${{ needs.determine-environment.outputs.environment }}"
+          echo "Namespace: ${{ steps.namespace.outputs.namespace }}"
+          echo "Image: ghcr.io/${{ github.repository }}:${{ needs.determine-environment.outputs.image_tag }}"
+          echo ""
+          echo "=== Pods ==="
+          kubectl get pods -n ${{ steps.namespace.outputs.namespace }} -l app=auth-service
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n ${{ steps.namespace.outputs.namespace }}
 
   verify:
     name: Verify Deployment
@@ -208,69 +208,69 @@ jobs:
     needs: [determine-environment, deploy]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v4
-      with:
-        version: 'latest'
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "latest"
 
-    - name: Configure kubectl
-      env:
-        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
-      run: |
-        mkdir -p $HOME/.kube
-        echo "$KUBE_CONFIG_DATA" | base64 -d > $HOME/.kube/config
-        chmod 600 $HOME/.kube/config
+      - name: Configure kubectl
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "$KUBE_CONFIG_DATA" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
 
-    - name: Set namespace
-      id: namespace
-      run: |
-        NAMESPACE="${{ secrets.KUBE_NAMESPACE }}"
-        if [ -z "$NAMESPACE" ]; then
-          NAMESPACE="auth-service"
-        fi
-        echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+      - name: Set namespace
+        id: namespace
+        run: |
+          NAMESPACE="${{ secrets.KUBE_NAMESPACE }}"
+          if [ -z "$NAMESPACE" ]; then
+            NAMESPACE="auth-service"
+          fi
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
 
-    - name: Check pod health
-      run: |
-        echo "Checking pod health..."
-        READY_PODS=$(kubectl get deployment auth-service -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.status.readyReplicas}')
-        DESIRED_PODS=$(kubectl get deployment auth-service -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.status.replicas}')
+      - name: Check pod health
+        run: |
+          echo "Checking pod health..."
+          READY_PODS=$(kubectl get deployment auth-service -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.status.readyReplicas}')
+          DESIRED_PODS=$(kubectl get deployment auth-service -n ${{ steps.namespace.outputs.namespace }} -o jsonpath='{.status.replicas}')
 
-        if [ "$READY_PODS" = "$DESIRED_PODS" ] && [ "$READY_PODS" != "0" ]; then
-          echo "✅ All pods are ready ($READY_PODS/$DESIRED_PODS)"
-        else
-          echo "❌ Pods not ready ($READY_PODS/$DESIRED_PODS)"
-          kubectl get pods -n ${{ steps.namespace.outputs.namespace }} -l app=auth-service
-          exit 1
-        fi
+          if [ "$READY_PODS" = "$DESIRED_PODS" ] && [ "$READY_PODS" != "0" ]; then
+            echo "✅ All pods are ready ($READY_PODS/$DESIRED_PODS)"
+          else
+            echo "❌ Pods not ready ($READY_PODS/$DESIRED_PODS)"
+            kubectl get pods -n ${{ steps.namespace.outputs.namespace }} -l app=auth-service
+            exit 1
+          fi
 
-    - name: Run health check
-      run: |
-        echo "Running health check..."
+      - name: Run health check
+        run: |
+          echo "Running health check..."
 
-        # Port forward to health endpoint
-        kubectl port-forward -n ${{ steps.namespace.outputs.namespace }} deployment/auth-service 8080:8080 &
-        PF_PID=$!
+          # Port forward to health endpoint
+          kubectl port-forward -n ${{ steps.namespace.outputs.namespace }} deployment/auth-service 8080:8080 &
+          PF_PID=$!
 
-        # Wait for port forward to be ready
-        sleep 5
+          # Wait for port forward to be ready
+          sleep 5
 
-        # Check health endpoint
-        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/auth/health || echo "failed")
+          # Check health endpoint
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/auth/health || echo "failed")
 
-        # Cleanup port forward
-        kill $PF_PID 2>/dev/null || true
+          # Cleanup port forward
+          kill $PF_PID 2>/dev/null || true
 
-        if [ "$HEALTH_STATUS" = "200" ]; then
-          echo "✅ Health check passed"
-        else
-          echo "❌ Health check failed (HTTP $HEALTH_STATUS)"
-          exit 1
-        fi
+          if [ "$HEALTH_STATUS" = "200" ]; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed (HTTP $HEALTH_STATUS)"
+            exit 1
+          fi
 
-    - name: Deployment successful
-      run: |
-        echo "🎉 Deployment to ${{ needs.determine-environment.outputs.environment }} completed successfully!"
+      - name: Deployment successful
+        run: |
+          echo "🎉 Deployment to ${{ needs.determine-environment.outputs.environment }} completed successfully!"

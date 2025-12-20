@@ -13,7 +13,7 @@ rules:
   brackets:
     max-spaces-inside: 1
   truthy:
-    allowed-values: ['true', 'false', 'on', 'off', 'yes', 'no']
+    allowed-values: ["true", "false", "on", "off", "yes", "no"]
 
 ignore: |
   .github/workflows/

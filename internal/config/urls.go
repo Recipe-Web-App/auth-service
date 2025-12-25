@@ -29,7 +29,7 @@ func (c *Config) GetServiceURLs() ServiceURLs {
 		fallthrough
 	default:
 		return ServiceURLs{
-			NotificationServiceBaseURL: "http://notification-service.local/api/v1/notification",
+			NotificationServiceBaseURL: "http://sous-chef-proxy.local/api/v1/notification",
 		}
 	}
 }

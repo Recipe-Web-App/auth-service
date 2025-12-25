@@ -3,7 +3,7 @@
     "name": "Auth Service",
     "redirect_uris": [
       "http://localhost:8080/api/v1/auth/callback",
-      "https://auth-service.local/api/v1/auth/callback"
+      "https://sous-chef-proxy.local/api/v1/auth/callback"
     ],
     "scopes": ["notification:admin"],
     "grant_types": ["client_credentials"]
@@ -12,7 +12,7 @@
     "name": "Media Management Service Client",
     "redirect_uris": [
       "http://localhost:3000/auth/callback",
-      "http://media-management.local/auth/callback"
+      "http://sous-chef-proxy.local/auth/callback"
     ],
     "scopes": ["openid", "profile", "email", "media:read", "media:write"],
     "grant_types": ["authorization_code", "client_credentials", "refresh_token"]
@@ -21,7 +21,7 @@
     "name": "Meal Plan Management Service",
     "redirect_uris": [
       "http://localhost:3000/api/v1/meal-plan-management/auth/callback",
-      "https://meal-plan-management.local/api/v1/meal-plan-management/auth/callback"
+      "https://sous-chef-proxy.local/api/v1/meal-plan-management/auth/callback"
     ],
     "scopes": ["read", "write"],
     "grant_types": ["client_credentials"]
@@ -30,7 +30,7 @@
     "name": "Notification Service",
     "redirect_uris": [
       "http://localhost:8000/api/v1/notifications/auth/callback",
-      "http://notification-service.local/api/v1/notifications/auth/callback"
+      "http://sous-chef-proxy.local/api/v1/notifications/auth/callback"
     ],
     "scopes": ["read", "write", "user:read"],
     "grant_types": ["client_credentials"]
@@ -48,7 +48,7 @@
     "name": "Recipe Scraper Service",
     "redirect_uris": [
       "http://localhost:8000/api/v1/recipe-scraper/auth/callback",
-      "https://recipe-scraper.local/api/v1/recipe-scraper/auth/callback"
+      "https://sous-chef-proxy.local/api/v1/recipe-scraper/auth/callback"
     ],
     "scopes": ["read", "write", "admin", "user:read"],
     "grant_types": ["client_credentials", "authorization_code", "refresh_token"]
@@ -57,7 +57,7 @@
     "name": "User Management Service",
     "redirect_uris": [
       "http://localhost:8000/api/v1/user-management/auth/callback",
-      "https://user-management.local/api/v1/user-management/auth/callback"
+      "https://sous-chef-proxy.local/api/v1/user-management/auth/callback"
     ],
     "scopes": ["openid", "profile", "user:read", "user:write", "admin"],
     "grant_types": ["authorization_code", "client_credentials", "refresh_token"]

@@ -59,11 +59,11 @@ print_separator "-"
 if kubectl get pods -n "$NAMESPACE" -l app=auth-service >/dev/null 2>&1; then
     MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "minikube not running")
     echo -e "${GREEN}🌍 Access URLs:${NC}"
-    echo "  Health: http://auth-service.local/api/v1/auth/health"
-    echo "  Readiness: http://auth-service.local/api/v1/auth/health/ready"
-    echo "  Metrics: http://auth-service.local/api/v1/auth/metrics"
-    echo "  OAuth2 Authorize: http://auth-service.local/api/v1/auth/oauth2/authorize"
-    echo "  OAuth2 Token: http://auth-service.local/api/v1/auth/oauth2/token"
+    echo "  Health: http://sous-chef-proxy.local/api/v1/auth/health"
+    echo "  Readiness: http://sous-chef-proxy.local/api/v1/auth/health/ready"
+    echo "  Metrics: http://sous-chef-proxy.local/api/v1/auth/metrics"
+    echo "  OAuth2 Authorize: http://sous-chef-proxy.local/api/v1/auth/oauth2/authorize"
+    echo "  OAuth2 Token: http://sous-chef-proxy.local/api/v1/auth/oauth2/token"
     echo "  Minikube IP: $MINIKUBE_IP"
 fi
 

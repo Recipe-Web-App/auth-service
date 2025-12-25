@@ -204,22 +204,11 @@ print_separator "-"
 kubectl apply -f "${CONFIG_DIR}/horizontalpodautoscaler.yaml"
 
 print_separator "="
-echo -e "${CYAN}⏳ Waiting for Ingress controller to be ready...${NC}"
+echo -e "${CYAN}📥 Applying Gateway HTTPRoute...${NC}"
 print_separator "-"
 
-kubectl wait --namespace ingress-nginx \
-    --for=condition=Ready pod \
-    --selector=app.kubernetes.io/component=controller \
-    --timeout=90s
-
-print_separator "-"
-print_status "ok" "Ingress controller is running."
-
-print_separator "="
-echo -e "${CYAN}📥 Applying Ingress resource...${NC}"
-print_separator "-"
-
-kubectl apply -f "${CONFIG_DIR}/ingress.yaml"
+kubectl apply -f "${CONFIG_DIR}/gateway-route.yaml"
+print_status "ok" "Gateway HTTPRoute applied."
 
 print_separator "="
 echo -e "${CYAN}⏳ Waiting for Auth Service pod to be ready...${NC}"
@@ -248,7 +237,7 @@ echo "$MINIKUBE_IP auth-service.local" | tee -a /etc/hosts
 print_status "ok" "/etc/hosts updated with auth-service.local pointing to $MINIKUBE_IP"
 
 print_separator "="
-echo -e "${GREEN}🌍 You can now access your app at: http://auth-service.local/api/v1/auth/health${NC}"
+echo -e "${GREEN}🌍 You can now access your app at: http://sous-chef-proxy.local/api/v1/auth/health${NC}"
 
 POD_NAME=$(kubectl get pods -n "$NAMESPACE" -l app=auth-service -o jsonpath="{.items[0].metadata.name}")
 SERVICE_JSON=$(kubectl get svc auth-service -n "$NAMESPACE" -o json)
@@ -261,9 +250,9 @@ echo -e "${CYAN}🛰️  Access info:${NC}"
 echo "  Pod: $POD_NAME"
 echo "  Service: $SERVICE_IP:$SERVICE_PORT"
 echo "  Ingress Hosts: $INGRESS_HOSTS"
-echo "  Health Check: http://auth-service.local/api/v1/auth/health"
-echo "  Readiness Check: http://auth-service.local/api/v1/auth/health/ready"
-echo "  Metrics: http://auth-service.local/api/v1/auth/metrics"
-echo "  OAuth2 Authorize: http://auth-service.local/api/v1/auth/oauth2/authorize"
-echo "  OAuth2 Token: http://auth-service.local/api/v1/auth/oauth2/token"
+echo "  Health Check: http://sous-chef-proxy.local/api/v1/auth/health"
+echo "  Readiness Check: http://sous-chef-proxy.local/api/v1/auth/health/ready"
+echo "  Metrics: http://sous-chef-proxy.local/api/v1/auth/metrics"
+echo "  OAuth2 Authorize: http://sous-chef-proxy.local/api/v1/auth/oauth2/authorize"
+echo "  OAuth2 Token: http://sous-chef-proxy.local/api/v1/auth/oauth2/token"
 print_separator "="

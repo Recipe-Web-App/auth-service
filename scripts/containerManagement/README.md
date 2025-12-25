@@ -102,11 +102,11 @@ Before using these scripts, ensure you have the following tools installed:
    ```
 
 3. **Access the application**:
-   - Health check: <http://auth-service.local/api/v1/auth/health>
-   - Readiness check: <http://auth-service.local/api/v1/auth/health/ready>
-   - OAuth2 authorize: <http://auth-service.local/api/v1/auth/oauth2/authorize>
-   - OAuth2 token: <http://auth-service.local/api/v1/auth/oauth2/token>
-   - Metrics: <http://auth-service.local/api/v1/auth/metrics>
+   - Health check: <http://sous-chef-proxy.local/api/v1/auth/health>
+   - Readiness check: <http://sous-chef-proxy.local/api/v1/auth/health/ready>
+   - OAuth2 authorize: <http://sous-chef-proxy.local/api/v1/auth/oauth2/authorize>
+   - OAuth2 token: <http://sous-chef-proxy.local/api/v1/auth/oauth2/token>
+   - Metrics: <http://sous-chef-proxy.local/api/v1/auth/metrics>
 
 4. **Update after code changes**:
 
@@ -186,7 +186,7 @@ The scripts are configured for:
 - **Namespace**: `auth-service`
 - **Service name**: `auth-service`
 - **Image name**: `auth-service:latest`
-- **Local domain**: `auth-service.local`
+- **Local domain**: `sous-chef-proxy.local`
 - **Port**: `8080`
 
 ## Service Endpoints

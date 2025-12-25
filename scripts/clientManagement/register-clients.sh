@@ -22,7 +22,7 @@ done
 if [ "$USE_LOCAL" = true ]; then
     AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8080}"
 else
-    AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://auth-service.local}"
+    AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://sous-chef-proxy.local}"
 fi
 
 # Terminal width for formatting
@@ -336,7 +336,7 @@ show_usage() {
     echo "  --help     - Show this help message"
     echo
     echo -e "${BOLD}Default behavior:${NC}"
-    echo "  Connects to deployed auth service at http://auth-service.local"
+    echo "  Connects to deployed auth service at http://sous-chef-proxy.local"
     echo
     echo -e "${BOLD}Environment Variables:${NC}"
     echo "  AUTH_SERVICE_URL - Override auth service URL"

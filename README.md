@@ -134,7 +134,7 @@ kubectl apply -f k8s/
 curl http://localhost:8080/api/v1/auth/health
 
 # Kubernetes
-curl http://auth-service.local/api/v1/auth/health
+curl http://sous-chef-proxy.local/api/v1/auth/health
 ```
 
 ## ✅ Implementation Status

@@ -15,7 +15,7 @@ func TestConfig_GetServiceURLs(t *testing.T) {
 		{
 			name:                    "Local environment returns localhost URLs",
 			environment:             config.Local,
-			wantNotificationBaseURL: "http://notification-service.local/api/v1/notification",
+			wantNotificationBaseURL: "http://sous-chef-proxy.local/api/v1/notification",
 		},
 		{
 			name:                    "NonProd environment returns Kubernetes internal URLs",
@@ -30,12 +30,12 @@ func TestConfig_GetServiceURLs(t *testing.T) {
 		{
 			name:                    "Empty/unrecognized environment defaults to Local",
 			environment:             config.Environment("UNKNOWN"),
-			wantNotificationBaseURL: "http://notification-service.local/api/v1/notification",
+			wantNotificationBaseURL: "http://sous-chef-proxy.local/api/v1/notification",
 		},
 		{
 			name:                    "Empty string environment defaults to Local",
 			environment:             config.Environment(""),
-			wantNotificationBaseURL: "http://notification-service.local/api/v1/notification",
+			wantNotificationBaseURL: "http://sous-chef-proxy.local/api/v1/notification",
 		},
 	}
 
@@ -118,10 +118,10 @@ func TestServiceURLs_LocalVsCluster(t *testing.T) {
 	localURLs := localCfg.GetServiceURLs()
 	nonProdURLs := nonProdCfg.GetServiceURLs()
 
-	// Local should contain "notification-service.local"
-	if !contains(localURLs.NotificationServiceBaseURL, "notification-service.local") {
+	// Local should contain "sous-chef-proxy.local"
+	if !contains(localURLs.NotificationServiceBaseURL, "sous-chef-proxy.local") {
 		t.Errorf(
-			"Local environment should use notification-service.local domain, got %s",
+			"Local environment should use sous-chef-proxy.local domain, got %s",
 			localURLs.NotificationServiceBaseURL,
 		)
 	}

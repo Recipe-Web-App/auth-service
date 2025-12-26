@@ -852,6 +852,175 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
 
+  /admin/cache/sessions/stats:
+    get:
+      summary: Get session statistics
+      description: Returns statistics about current sessions.
+      operationId: getSessionStats
+      tags:
+        - Admin
+      security: []
+      parameters:
+        - name: includeTtlPolicy
+          in: query
+          description: Include breakdown of sessions by TTL policy
+          schema:
+            type: boolean
+            default: false
+        - name: includeTtlDistribution
+          in: query
+          description: Include histogram of remaining TTLs
+          schema:
+            type: boolean
+            default: false
+        - name: includeTtlSummary
+          in: query
+          description: Include aggregate TTL statistics
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Session statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+
+  /admin/cache/sessions:
+    delete:
+      summary: Clear cached sessions
+      description: Clears all cached sessions.
+      operationId: clearSessions
+      tags:
+        - Admin
+      security: []
+      responses:
+        "200":
+          description: Sessions cleared successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearSessionsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+
+  /admin/cache/clear:
+    post:
+      summary: Clear cache entries
+      description: Clears all requested cache entries (defaults to all).
+      operationId: clearCache
+      tags:
+        - Admin
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearCacheRequest"
+      responses:
+        "200":
+          description: Cache cleared successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearCacheResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+
+  /admin/user-management/{userId}/force-logout:
+    post:
+      summary: Force user logout
+      description: Forces a user to logout by invalidating their session.
+      operationId: forceLogout
+      tags:
+        - Admin
+      security: []
+      parameters:
+        - name: userId
+          in: path
+          description: ID of the user to force logout
+          required: true
+          schema:
+            type: string
+            format: UUID
+      responses:
+        "200":
+          description: User logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearSessionsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1503,6 +1672,153 @@ components:
         - message
         - password_updated
 
+    SessionStats:
+      type: object
+      description: Schema storing statistics about current sessions.
+      properties:
+        totalSessions:
+          description: Total number of sessions.
+          type: integer
+        activeSessions:
+          description: Number of active sessions.
+          type: integer
+        memoryUsage:
+          description: Cache memory usage.
+          type: string
+        ttlInfo:
+          description: List of non-sensitive TTL information for sessions.
+          type: object
+          properties:
+            ttlPolicyUsage:
+              description: Breakdown of sessions by their assigned TTL configuration.
+              type: array
+              items:
+                $ref: "#/components/schemas/SessionTtlPolicyStats"
+            ttlDistribution:
+              description: Histogram bucket showing how many sessions expire within a time range.
+              type: array
+              items:
+                $ref: "#/components/schemas/TtlDistributionBucket"
+            ttlSummary:
+              $ref: "#/components/schemas/TtlSummary"
+      required:
+        - totalSessions
+        - activeSessions
+        - memoryUsage
+
+    SessionTtlPolicyStats:
+      type: object
+      description: Breakdown of sessions by their assigned TTL configuration.
+      properties:
+        policyName:
+          type: string
+          description: Name of the policy (e.g., "Standard", "Remember Me")
+        configuredTtl:
+          type: integer
+          description: The setting for this policy (e.g., 3600 for 1 hour)
+        unit:
+          type: string
+          enum: [seconds, minutes, hours, days]
+        activeCount:
+          type: integer
+          description: Number of active sessions currently under this policy
+      required:
+        - policyName
+        - configuredTtl
+        - activeCount
+
+    TtlDistributionBucket:
+      type: object
+      description: Histogram bucket showing how many sessions expire within a time range.
+      properties:
+        rangeStart:
+          type: string
+          description: Start of range (e.g., "0m")
+        rangeEnd:
+          type: string
+          description: End of range (e.g., "15m")
+        sessionCount:
+          type: integer
+          description: Number of sessions expiring in this window
+      required:
+        - rangeStart
+        - rangeEnd
+        - sessionCount
+
+    TtlSummary:
+      type: object
+      properties:
+        averageRemainingSeconds:
+          type: integer
+        oldestSessionAgeSeconds:
+          type: integer
+        totalSessionsWithTtl:
+          type: integer
+
+    ClearSessionsResponse:
+      type: object
+      description: Response schema for clearing cached sessions.
+      properties:
+        success:
+          type: boolean
+          description: Whether the session clearing was successful.
+        message:
+          type: string
+          description: A message describing the result of the session clearing.
+        sessionsCleared:
+          type: integer
+          description: The number of sessions that were cleared.
+      required:
+        - success
+        - message
+        - sessionsCleared
+
+    ForceLogoutResponse:
+      type: object
+      description: Response for a force logout request
+      properties:
+        success:
+          type: boolean
+          description: Whether the logout was successful
+        message:
+          type: string
+          description: A message describing the result
+        userId:
+          type: string
+          format: uuid
+          description: The ID of the user that was logged out
+      required:
+        - success
+        - message
+        - userId
+
+    ClearCacheRequest:
+      type: object
+      description: Request to clear cache entries
+      properties:
+        keyPattern:
+          type: string
+          default: "*"
+          description: Redis pattern for keys to clear
+
+    ClearCacheResponse:
+      type: object
+      description: Response for a clear cache request
+      properties:
+        message:
+          type: string
+          description: Status message for the request
+        keyPattern:
+          type: string
+          description: The pattern of all keys that were cleared from the cache
+        clearedCount:
+          type: integer
+          description: The count of all cache entries that were removed
+      required:
+        - message
+        - keyPattern
+        - clearedCount
+
 tags:
   - name: Health
     description: Health and readiness endpoints
@@ -1512,3 +1828,5 @@ tags:
     description: OAuth2 authentication and authorization endpoints
   - name: User Management
     description: User registration, authentication, and password management endpoints
+  - name: Admin
+    description: Admin endpoints for privileged & sensitive system actions

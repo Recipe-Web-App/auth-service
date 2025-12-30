@@ -22,6 +22,7 @@ type mockAdminService struct {
 	getSessionStatsFunc  func(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
 	clearAllSessionsFunc func(ctx context.Context) (*models.ClearSessionsResponse, error)
 	forceLogoutUserFunc  func(ctx context.Context, userID string) (*models.ForceLogoutResponse, error)
+	clearAllCachesFunc   func(ctx context.Context) (*models.ClearAllCachesResponse, error)
 }
 
 func (m *mockAdminService) GetSessionStats(
@@ -44,6 +45,13 @@ func (m *mockAdminService) ClearAllSessions(ctx context.Context) (*models.ClearS
 func (m *mockAdminService) ForceLogoutUser(ctx context.Context, userID string) (*models.ForceLogoutResponse, error) {
 	if m.forceLogoutUserFunc != nil {
 		return m.forceLogoutUserFunc(ctx, userID)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockAdminService) ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error) {
+	if m.clearAllCachesFunc != nil {
+		return m.clearAllCachesFunc(ctx)
 	}
 	return nil, errors.New("not implemented")
 }
@@ -543,6 +551,133 @@ func TestAdminHandler_ForceLogout_ContentType(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	handler.ForceLogout(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+func TestAdminHandler_ClearAllCaches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		mockFunc       func(ctx context.Context) (*models.ClearAllCachesResponse, error)
+		expectedStatus int
+		validateResp   func(t *testing.T, resp *models.ClearAllCachesResponse)
+	}{
+		{
+			name: "successful_clear_all_caches",
+			mockFunc: func(_ context.Context) (*models.ClearAllCachesResponse, error) {
+				return &models.ClearAllCachesResponse{
+					Success: true,
+					Message: "Successfully cleared 156 keys from all caches",
+					CachesCleared: map[string]int{
+						"sessions":            42,
+						"access_tokens":       38,
+						"refresh_tokens":      35,
+						"authorization_codes": 2,
+						"blacklist":           5,
+						"clients":             8,
+						"users":               20,
+						"password_resets":     6,
+					},
+					TotalKeysCleared: 156,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			validateResp: func(t *testing.T, resp *models.ClearAllCachesResponse) {
+				assert.True(t, resp.Success)
+				assert.Equal(t, 156, resp.TotalKeysCleared)
+				assert.Contains(t, resp.Message, "Successfully cleared")
+				assert.Equal(t, 42, resp.CachesCleared["sessions"])
+				assert.Equal(t, 38, resp.CachesCleared["access_tokens"])
+				assert.Equal(t, 8, resp.CachesCleared["clients"])
+			},
+		},
+		{
+			name: "successful_clear_empty_caches",
+			mockFunc: func(_ context.Context) (*models.ClearAllCachesResponse, error) {
+				return &models.ClearAllCachesResponse{
+					Success: true,
+					Message: "Successfully cleared 0 keys from all caches",
+					CachesCleared: map[string]int{
+						"sessions":            0,
+						"access_tokens":       0,
+						"refresh_tokens":      0,
+						"authorization_codes": 0,
+						"blacklist":           0,
+						"clients":             0,
+						"users":               0,
+						"password_resets":     0,
+					},
+					TotalKeysCleared: 0,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			validateResp: func(t *testing.T, resp *models.ClearAllCachesResponse) {
+				assert.True(t, resp.Success)
+				assert.Equal(t, 0, resp.TotalKeysCleared)
+			},
+		},
+		{
+			name: "service_error",
+			mockFunc: func(_ context.Context) (*models.ClearAllCachesResponse, error) {
+				return nil, errors.New("redis connection failed")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateResp:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockSvc := &mockAdminService{
+				clearAllCachesFunc: tt.mockFunc,
+			}
+
+			log := logger.New("debug", "json", "stdout")
+			handler := handlers.NewAdminHandler(mockSvc, nil, log)
+
+			req := httptest.NewRequest(http.MethodPost, "/admin/cache/clear", nil)
+			rr := httptest.NewRecorder()
+
+			handler.ClearAllCaches(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+
+			if tt.expectedStatus == http.StatusOK && tt.validateResp != nil {
+				var response models.ClearAllCachesResponse
+				err := json.Unmarshal(rr.Body.Bytes(), &response)
+				require.NoError(t, err)
+				tt.validateResp(t, &response)
+			}
+		})
+	}
+}
+
+func TestAdminHandler_ClearAllCaches_ContentType(t *testing.T) {
+	t.Parallel()
+
+	mockSvc := &mockAdminService{
+		clearAllCachesFunc: func(_ context.Context) (*models.ClearAllCachesResponse, error) {
+			return &models.ClearAllCachesResponse{
+				Success:          true,
+				Message:          "Successfully cleared 10 keys from all caches",
+				CachesCleared:    map[string]int{"sessions": 10},
+				TotalKeysCleared: 10,
+			}, nil
+		},
+	}
+
+	log := logger.New("debug", "json", "stdout")
+	handler := handlers.NewAdminHandler(mockSvc, nil, log)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/cache/clear", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ClearAllCaches(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))

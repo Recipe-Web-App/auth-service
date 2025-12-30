@@ -222,6 +222,11 @@ type Store interface {
 	// Scans all session keys and filters by userID before deletion.
 	// Returns the number of sessions cleared and any error encountered.
 	ClearUserSessions(ctx context.Context, userID string) (int, error)
+
+	// ClearAllCaches deletes all cached data from the store.
+	// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+	// Use with extreme caution as it will invalidate all active sessions and tokens.
+	ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error)
 }
 
 // NewClient creates a new Redis client instance with the provided configuration.
@@ -1475,6 +1480,101 @@ func (c *Client) ClearAllSessions(ctx context.Context) (int, error) {
 	}
 
 	c.logger.WithField("sessions_cleared", deleted).Info("All sessions cleared successfully")
+	return deleted, nil
+}
+
+// ClearAllCaches deletes all cached data from Redis.
+// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+// Use with extreme caution as it will invalidate all active sessions and tokens.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//
+// Returns:
+//   - *models.ClearAllCachesResponse: Response containing counts of cleared items per cache type
+//   - error: Redis operation error, if any
+func (c *Client) ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error) {
+	c.logger.Warn("Clearing ALL caches - this is a destructive operation")
+
+	cachePatterns := []struct {
+		name    string
+		pattern string
+	}{
+		{"sessions", "auth:session:*"},
+		{"access_tokens", "auth:access_token:*"},
+		{"refresh_tokens", "auth:refresh_token:*"},
+		{"authorization_codes", "auth:code:*"},
+		{"blacklist", "auth:blacklist:*"},
+		{"clients", "auth:client:*"},
+		{"users", "auth:user:*"},
+		{"password_resets", "auth:password_reset:*"},
+	}
+
+	cachesCleared := make(map[string]int)
+	totalCleared := 0
+
+	for _, cache := range cachePatterns {
+		count, err := c.clearCacheByPattern(ctx, cache.pattern)
+		if err != nil {
+			c.logger.WithError(err).WithField("pattern", cache.pattern).Error("Failed to clear cache pattern")
+			return nil, fmt.Errorf("failed to clear %s cache: %w", cache.name, err)
+		}
+		cachesCleared[cache.name] = count
+		totalCleared += count
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"caches_cleared":     cachesCleared,
+		"total_keys_cleared": totalCleared,
+	}).Warn("All caches cleared successfully")
+
+	return &models.ClearAllCachesResponse{
+		Success:          true,
+		Message:          fmt.Sprintf("Successfully cleared %d keys from all caches", totalCleared),
+		CachesCleared:    cachesCleared,
+		TotalKeysCleared: totalCleared,
+	}, nil
+}
+
+// clearCacheByPattern scans and deletes all keys matching a pattern.
+func (c *Client) clearCacheByPattern(ctx context.Context, pattern string) (int, error) {
+	var allKeys []string
+	var cursor uint64
+
+	for {
+		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, ScanBatchSize).Result()
+		if err != nil {
+			return 0, err
+		}
+
+		allKeys = append(allKeys, keys...)
+		cursor = nextCursor
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if len(allKeys) == 0 {
+		return 0, nil
+	}
+
+	// Delete keys in batches
+	deleted := 0
+	for i := 0; i < len(allKeys); i += ScanBatchSize {
+		end := i + ScanBatchSize
+		if end > len(allKeys) {
+			end = len(allKeys)
+		}
+
+		batch := allKeys[i:end]
+		result, err := c.rdb.Del(ctx, batch...).Result()
+		if err != nil {
+			return deleted, err
+		}
+		deleted += int(result)
+	}
+
 	return deleted, nil
 }
 

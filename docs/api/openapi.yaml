@@ -949,25 +949,50 @@ paths:
 
   /admin/cache/clear:
     post:
-      summary: Clear cache entries
-      description: Clears all requested cache entries (defaults to all).
-      operationId: clearCache
+      summary: Clear all caches (nuclear option)
+      description: |
+        Clears ALL cached data from the store including sessions, tokens, clients, and users.
+
+        **WARNING: This is a destructive operation!**
+
+        This endpoint will:
+        - Invalidate all active sessions (log out all users)
+        - Revoke all access and refresh tokens
+        - Clear all cached OAuth2 clients
+        - Clear all cached user data
+        - Clear all authorization codes
+        - Clear all password reset tokens
+        - Clear all blacklisted tokens
+
+        Use with extreme caution. This is intended for emergency recovery, security incidents,
+        or complete system resets.
+
+        **Authentication Required**: Bearer token with `admin` or `admin:cache` scope.
+      operationId: clearAllCaches
       tags:
         - Admin
-      security: []
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClearCacheRequest"
+      security:
+        - BearerAuth: []
       responses:
         "200":
-          description: Cache cleared successfully
+          description: All caches cleared successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ClearCacheResponse"
+                $ref: "#/components/schemas/ClearAllCachesResponse"
+              example:
+                success: true
+                message: "Successfully cleared 156 keys from all caches"
+                cachesCleared:
+                  sessions: 42
+                  access_tokens: 38
+                  refresh_tokens: 35
+                  authorization_codes: 2
+                  blacklist: 5
+                  clients: 8
+                  users: 20
+                  password_resets: 6
+                totalKeysCleared: 156
         "401":
           description: Unauthorized
           content:
@@ -980,8 +1005,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
-        "422":
-          description: Validation failed
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -1812,32 +1837,38 @@ components:
         - message
         - userId
 
-    ClearCacheRequest:
+    ClearAllCachesResponse:
       type: object
-      description: Request to clear cache entries
+      description: Response for clearing all caches (nuclear option)
       properties:
-        keyPattern:
-          type: string
-          default: "*"
-          description: Redis pattern for keys to clear
-
-    ClearCacheResponse:
-      type: object
-      description: Response for a clear cache request
-      properties:
+        success:
+          type: boolean
+          description: Whether the cache clearing was successful
         message:
           type: string
-          description: Status message for the request
-        keyPattern:
-          type: string
-          description: The pattern of all keys that were cleared from the cache
-        clearedCount:
+          description: A message describing the result of the cache clearing
+        cachesCleared:
+          type: object
+          description: Breakdown of keys cleared per cache type
+          additionalProperties:
+            type: integer
+          example:
+            sessions: 42
+            access_tokens: 38
+            refresh_tokens: 35
+            authorization_codes: 2
+            blacklist: 5
+            clients: 8
+            users: 20
+            password_resets: 6
+        totalKeysCleared:
           type: integer
-          description: The count of all cache entries that were removed
+          description: Total number of keys cleared across all caches
       required:
+        - success
         - message
-        - keyPattern
-        - clearedCount
+        - cachesCleared
+        - totalKeysCleared
 
 tags:
   - name: Health

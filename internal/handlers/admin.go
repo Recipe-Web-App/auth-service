@@ -37,6 +37,7 @@ func NewAdminHandler(adminSvc auth.AdminService, cfg *config.Config, logger *log
 func (h *AdminHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/cache/sessions/stats", h.GetSessionStats).Methods(http.MethodGet)
 	router.HandleFunc("/cache/sessions", h.ClearSessions).Methods(http.MethodDelete)
+	router.HandleFunc("/cache/clear", h.ClearAllCaches).Methods(http.MethodPost)
 	router.HandleFunc("/user-management/{userId}/force-logout", h.ForceLogout).Methods(http.MethodPost)
 }
 
@@ -101,6 +102,34 @@ func (h *AdminHandler) ClearSessions(w http.ResponseWriter, r *http.Request) {
 
 	h.writeJSONResponse(w, response, http.StatusOK)
 	h.logger.WithField("sessions_cleared", response.SessionsCleared).Info("Sessions cleared successfully")
+}
+
+// ClearAllCaches handles POST /admin/cache/clear
+// Clears ALL cached data from the store including sessions, tokens, clients, and users.
+// This is a nuclear option - use with extreme caution.
+//
+// Responses:
+//   - 200: All caches cleared successfully
+//   - 401: Unauthorized (handled by middleware)
+//   - 403: Forbidden (handled by middleware)
+//   - 500: Internal server error
+func (h *AdminHandler) ClearAllCaches(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	h.logger.Warn("Processing clear ALL caches request - this is a destructive operation")
+
+	response, err := h.adminSvc.ClearAllCaches(ctx)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to clear all caches")
+		h.writeErrorResponse(w, "Failed to clear all caches", http.StatusInternalServerError)
+		return
+	}
+
+	h.writeJSONResponse(w, response, http.StatusOK)
+	h.logger.WithFields(logrus.Fields{
+		"caches_cleared":     response.CachesCleared,
+		"total_keys_cleared": response.TotalKeysCleared,
+	}).Warn("All caches cleared successfully")
 }
 
 // ForceLogout handles POST /admin/user-management/{userId}/force-logout

@@ -22,6 +22,9 @@ type AdminService interface {
 
 	// ForceLogoutUser clears all sessions for a specific user.
 	ForceLogoutUser(ctx context.Context, userID string) (*models.ForceLogoutResponse, error)
+
+	// ClearAllCaches clears all cached data including sessions, tokens, clients, and users.
+	ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error)
 }
 
 // adminService implements the AdminService interface.
@@ -114,4 +117,24 @@ func (s *adminService) ForceLogoutUser(ctx context.Context, userID string) (*mod
 		UserID:          userID,
 		SessionsCleared: count,
 	}, nil
+}
+
+// ClearAllCaches clears all cached data from the store.
+// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+// It delegates to the Redis store to perform the actual deletion.
+func (s *adminService) ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error) {
+	s.logger.Warn("Clearing all caches - this is a destructive operation")
+
+	response, err := s.store.ClearAllCaches(ctx)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to clear all caches")
+		return nil, err
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"caches_cleared":     response.CachesCleared,
+		"total_keys_cleared": response.TotalKeysCleared,
+	}).Warn("All caches cleared successfully")
+
+	return response, nil
 }

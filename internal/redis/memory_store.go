@@ -6,6 +6,7 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -697,4 +698,114 @@ func (m *MemoryStore) ClearUserSessions(_ context.Context, userID string) (int, 
 		"user_id":          userID,
 	}).Info("User sessions cleared from memory store")
 	return count, nil
+}
+
+// ClearAllCaches deletes all cached data from the memory store.
+// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//
+// Returns:
+//   - *models.ClearAllCachesResponse: Response containing counts of cleared items per cache type
+//   - error: Always nil for memory store
+func (m *MemoryStore) ClearAllCaches(_ context.Context) (*models.ClearAllCachesResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Warn("Clearing ALL caches from memory store - this is a destructive operation")
+
+	cachesCleared, totalCleared := m.clearAllCachesInternal()
+
+	m.logger.WithFields(logrus.Fields{
+		"caches_cleared":     cachesCleared,
+		"total_keys_cleared": totalCleared,
+	}).Warn("All caches cleared from memory store")
+
+	return &models.ClearAllCachesResponse{
+		Success:          true,
+		Message:          fmt.Sprintf("Successfully cleared %d keys from all caches", totalCleared),
+		CachesCleared:    cachesCleared,
+		TotalKeysCleared: totalCleared,
+	}, nil
+}
+
+// clearAllCachesInternal performs the actual cache clearing and returns counts.
+// Must be called with m.mu held.
+func (m *MemoryStore) clearAllCachesInternal() (map[string]int, int) {
+	cachesCleared := make(map[string]int)
+	totalCleared := 0
+
+	// Clear clients
+	cachesCleared["clients"] = len(m.clients)
+	totalCleared += len(m.clients)
+	m.clients = make(map[string]*models.Client)
+
+	// Clear expiring caches
+	cachesCleared["authorization_codes"], m.authCodes = m.clearExpiringAuthCodes()
+	totalCleared += cachesCleared["authorization_codes"]
+
+	cachesCleared["access_tokens"], m.accessTokens = m.clearExpiringAccessTokens()
+	totalCleared += cachesCleared["access_tokens"]
+
+	cachesCleared["refresh_tokens"], m.refreshTokens = m.clearExpiringRefreshTokens()
+	totalCleared += cachesCleared["refresh_tokens"]
+
+	cachesCleared["sessions"], m.sessions = m.clearExpiringSessions()
+	totalCleared += cachesCleared["sessions"]
+
+	cachesCleared["blacklist"], m.blacklist = m.clearExpiringBlacklist()
+	totalCleared += cachesCleared["blacklist"]
+
+	cachesCleared["password_resets"], m.passwordResets = m.clearExpiringPasswordResets()
+	totalCleared += cachesCleared["password_resets"]
+
+	// Clear users
+	cachesCleared["users"] = len(m.users)
+	totalCleared += len(m.users)
+	m.users = make(map[string]*models.UserWithPassword)
+	m.usersByEmail = make(map[string]*models.UserWithPassword)
+
+	return cachesCleared, totalCleared
+}
+
+func (m *MemoryStore) clearExpiringAuthCodes() (int, map[string]*expiringItem[*models.AuthorizationCode]) {
+	count := countNonExpired(m.authCodes)
+	return count, make(map[string]*expiringItem[*models.AuthorizationCode])
+}
+
+func (m *MemoryStore) clearExpiringAccessTokens() (int, map[string]*expiringItem[*models.AccessToken]) {
+	count := countNonExpired(m.accessTokens)
+	return count, make(map[string]*expiringItem[*models.AccessToken])
+}
+
+func (m *MemoryStore) clearExpiringRefreshTokens() (int, map[string]*expiringItem[*models.RefreshToken]) {
+	count := countNonExpired(m.refreshTokens)
+	return count, make(map[string]*expiringItem[*models.RefreshToken])
+}
+
+func (m *MemoryStore) clearExpiringSessions() (int, map[string]*expiringItem[*models.Session]) {
+	count := countNonExpired(m.sessions)
+	return count, make(map[string]*expiringItem[*models.Session])
+}
+
+func (m *MemoryStore) clearExpiringBlacklist() (int, map[string]*expiringItem[bool]) {
+	count := countNonExpired(m.blacklist)
+	return count, make(map[string]*expiringItem[bool])
+}
+
+func (m *MemoryStore) clearExpiringPasswordResets() (int, map[string]*expiringItem[*models.PasswordResetToken]) {
+	count := countNonExpired(m.passwordResets)
+	return count, make(map[string]*expiringItem[*models.PasswordResetToken])
+}
+
+// countNonExpired counts non-expired items in an expiring item map.
+func countNonExpired[T any](items map[string]*expiringItem[T]) int {
+	count := 0
+	for _, item := range items {
+		if !item.isExpired() {
+			count++
+		}
+	}
+	return count
 }

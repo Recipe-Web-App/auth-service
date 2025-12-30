@@ -60,3 +60,11 @@ type ForceLogoutResponse struct {
 	UserID          string `json:"userId"`
 	SessionsCleared int    `json:"sessionsCleared,omitempty"`
 }
+
+// ClearAllCachesResponse represents the response for clearing all caches.
+type ClearAllCachesResponse struct {
+	Success          bool           `json:"success"`
+	Message          string         `json:"message"`
+	CachesCleared    map[string]int `json:"cachesCleared"`
+	TotalKeysCleared int            `json:"totalKeysCleared"`
+}

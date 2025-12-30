@@ -207,6 +207,11 @@ type Store interface {
 	// Typically called after password reset to prevent replay attacks.
 	// Returns an error if the Redis delete operation fails.
 	DeletePasswordResetToken(ctx context.Context, token string) error
+
+	// GetSessionStats retrieves statistics about sessions in the cache.
+	// Returns session counts, memory usage, and optional TTL information based on the request.
+	// Uses Redis SCAN for session counting and INFO for memory statistics.
+	GetSessionStats(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
 }
 
 // NewClient creates a new Redis client instance with the provided configuration.
@@ -1187,4 +1192,237 @@ func (c *Client) updateEmailKeys(ctx context.Context, oldEmail, newEmail string,
 	}
 
 	return nil
+}
+
+// GetSessionStats retrieves statistics about sessions stored in Redis.
+// Uses SCAN for session counting and INFO for memory statistics.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - req: Request containing flags for optional TTL information
+//
+// Returns:
+//   - *models.SessionStats: Session statistics including counts, memory usage, and TTL info
+//   - error: Redis operation error, if any
+func (c *Client) GetSessionStats(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error) {
+	stats := &models.SessionStats{}
+
+	// Count sessions using SCAN with 'auth:session:*' pattern
+	sessionKeys, err := c.scanSessionKeys(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan session keys: %w", err)
+	}
+
+	stats.TotalSessions = len(sessionKeys)
+	stats.ActiveSessions = len(sessionKeys) // All keys in Redis are active (expired ones are auto-removed)
+
+	// Get memory usage using INFO memory command
+	stats.MemoryUsage = c.getMemoryUsage(ctx)
+
+	// Build TTL info if any TTL-related flags are set
+	if req.IncludeTTLPolicy || req.IncludeTTLDistribution || req.IncludeTTLSummary {
+		stats.TTLInfo = c.buildTTLInfo(ctx, sessionKeys, req)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"total_sessions":  stats.TotalSessions,
+		"active_sessions": stats.ActiveSessions,
+	}).Debug("Session stats retrieved successfully")
+
+	return stats, nil
+}
+
+// ScanBatchSize is the number of keys to scan per Redis SCAN iteration.
+const ScanBatchSize = 100
+
+// scanSessionKeys uses Redis SCAN to find all session keys.
+func (c *Client) scanSessionKeys(ctx context.Context) ([]string, error) {
+	var sessionKeys []string
+	var cursor uint64
+	pattern := "auth:session:*"
+
+	for {
+		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, ScanBatchSize).Result()
+		if err != nil {
+			return nil, err
+		}
+
+		sessionKeys = append(sessionKeys, keys...)
+		cursor = nextCursor
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return sessionKeys, nil
+}
+
+// getMemoryUsage retrieves memory usage from Redis INFO command.
+func (c *Client) getMemoryUsage(ctx context.Context) string {
+	info, err := c.rdb.Info(ctx, "memory").Result()
+	if err != nil {
+		c.logger.WithError(err).Warn("Failed to get Redis memory info")
+		return "unavailable"
+	}
+
+	return parseMemoryUsage(info)
+}
+
+// parseMemoryUsage extracts used_memory_human from Redis INFO memory output.
+func parseMemoryUsage(info string) string {
+	lines := splitInfoLines(info)
+	for _, line := range lines {
+		if len(line) > 18 && line[:18] == "used_memory_human:" {
+			return line[18:]
+		}
+	}
+	return "unavailable"
+}
+
+// splitInfoLines splits Redis INFO output into lines.
+func splitInfoLines(info string) []string {
+	var lines []string
+	start := 0
+	for i := range len(info) {
+		if info[i] == '\n' {
+			line := info[start:i]
+			// Remove carriage return if present
+			if len(line) > 0 && line[len(line)-1] == '\r' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			start = i + 1
+		}
+	}
+	// Handle last line without newline
+	if start < len(info) {
+		lines = append(lines, info[start:])
+	}
+	return lines
+}
+
+// buildTTLInfo constructs TTL information based on request flags.
+func (c *Client) buildTTLInfo(
+	ctx context.Context,
+	sessionKeys []string,
+	req *models.SessionStatsRequest,
+) *models.TTLInfo {
+	ttlInfo := &models.TTLInfo{}
+
+	// Collect TTLs for all sessions
+	ttls := c.collectSessionTTLs(ctx, sessionKeys)
+
+	if req.IncludeTTLPolicy {
+		ttlInfo.TTLPolicyUsage = buildTTLPolicyUsage(len(sessionKeys))
+	}
+
+	if req.IncludeTTLDistribution {
+		ttlInfo.TTLDistribution = buildTTLDistribution(ttls)
+	}
+
+	if req.IncludeTTLSummary {
+		ttlInfo.TTLSummary = buildTTLSummary(ttls)
+	}
+
+	return ttlInfo
+}
+
+// collectSessionTTLs retrieves TTL values for all session keys.
+func (c *Client) collectSessionTTLs(ctx context.Context, sessionKeys []string) []time.Duration {
+	var ttls []time.Duration
+
+	for _, key := range sessionKeys {
+		ttl, err := c.rdb.TTL(ctx, key).Result()
+		if err != nil || ttl < 0 {
+			continue
+		}
+		ttls = append(ttls, ttl)
+	}
+
+	return ttls
+}
+
+// buildTTLPolicyUsage creates the TTL policy usage statistics.
+// Currently supports a single "Default" policy with 24-hour TTL.
+func buildTTLPolicyUsage(sessionCount int) []models.SessionTTLPolicyStats {
+	return []models.SessionTTLPolicyStats{
+		{
+			PolicyName:    "Default",
+			ConfiguredTTL: int(models.DefaultSessionExpiry.Seconds()),
+			Unit:          "seconds",
+			ActiveCount:   sessionCount,
+		},
+	}
+}
+
+// buildTTLDistribution creates histogram buckets for TTL distribution.
+func buildTTLDistribution(ttls []time.Duration) []models.TTLDistributionBucket {
+	buckets := []struct {
+		start    time.Duration
+		end      time.Duration
+		startStr string
+		endStr   string
+	}{
+		{0, 15 * time.Minute, "0m", "15m"},
+		{15 * time.Minute, 60 * time.Minute, "15m", "60m"},
+		{60 * time.Minute, 6 * time.Hour, "1h", "6h"},
+		{6 * time.Hour, 24 * time.Hour, "6h", "24h"},
+		{24 * time.Hour, time.Duration(1<<63 - 1), "24h", "∞"},
+	}
+
+	distribution := make([]models.TTLDistributionBucket, len(buckets))
+	for i, bucket := range buckets {
+		distribution[i] = models.TTLDistributionBucket{
+			RangeStart:   bucket.startStr,
+			RangeEnd:     bucket.endStr,
+			SessionCount: 0,
+		}
+	}
+
+	for _, ttl := range ttls {
+		for i, bucket := range buckets {
+			if ttl >= bucket.start && ttl < bucket.end {
+				distribution[i].SessionCount++
+				break
+			}
+		}
+	}
+
+	return distribution
+}
+
+// buildTTLSummary creates aggregate TTL statistics.
+func buildTTLSummary(ttls []time.Duration) *models.TTLSummary {
+	if len(ttls) == 0 {
+		return &models.TTLSummary{
+			AverageRemainingSeconds: 0,
+			OldestSessionAgeSeconds: 0,
+			TotalSessionsWithTTL:    0,
+		}
+	}
+
+	var totalSeconds int64
+	minTTL := time.Duration(1<<63 - 1) // Max duration
+
+	for _, ttl := range ttls {
+		totalSeconds += int64(ttl.Seconds())
+		if ttl < minTTL {
+			minTTL = ttl
+		}
+	}
+
+	avgSeconds := totalSeconds / int64(len(ttls))
+
+	// Calculate oldest session age: DefaultSessionExpiry - minTTL remaining
+	oldestAge := models.DefaultSessionExpiry - minTTL
+	if oldestAge < 0 {
+		oldestAge = 0
+	}
+
+	return &models.TTLSummary{
+		AverageRemainingSeconds: int(avgSeconds),
+		OldestSessionAgeSeconds: int(oldestAge.Seconds()),
+		TotalSessionsWithTTL:    len(ttls),
+	}
 }

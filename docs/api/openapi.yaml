@@ -855,11 +855,19 @@ paths:
   /admin/cache/sessions/stats:
     get:
       summary: Get session statistics
-      description: Returns statistics about current sessions.
+      description: |
+        Returns statistics about current sessions in the cache.
+
+        **Authentication Required**: Bearer token with `admin` or `admin:cache` scope.
+
+        This endpoint provides insights into session activity including total session count,
+        active sessions, memory usage, and optional TTL information for monitoring and
+        capacity planning purposes.
       operationId: getSessionStats
       tags:
         - Admin
-      security: []
+      security:
+        - BearerAuth: []
       parameters:
         - name: includeTtlPolicy
           in: query
@@ -1708,20 +1716,26 @@ components:
 
     SessionTtlPolicyStats:
       type: object
-      description: Breakdown of sessions by their assigned TTL configuration.
+      description: |
+        Breakdown of sessions by their assigned TTL configuration.
+        Currently supports a single "Default" policy with 24-hour (86400 seconds) TTL.
       properties:
         policyName:
           type: string
-          description: Name of the policy (e.g., "Standard", "Remember Me")
+          description: Name of the policy (currently only "Default")
+          example: "Default"
         configuredTtl:
           type: integer
-          description: The setting for this policy (e.g., 3600 for 1 hour)
+          description: The configured TTL for this policy in seconds (86400 for 24 hours)
+          example: 86400
         unit:
           type: string
-          enum: [seconds, minutes, hours, days]
+          description: The unit of the configuredTtl value
+          example: "seconds"
         activeCount:
           type: integer
           description: Number of active sessions currently under this policy
+          example: 42
       required:
         - policyName
         - configuredTtl

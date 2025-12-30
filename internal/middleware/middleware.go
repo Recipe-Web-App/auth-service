@@ -4,6 +4,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/config"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/constants"
 	redisStore "github.com/jsamuelsen11/recipe-web-app/auth-service/internal/redis"
+	"github.com/jsamuelsen11/recipe-web-app/auth-service/internal/token"
 	"github.com/jsamuelsen11/recipe-web-app/auth-service/pkg/logger"
 )
 
@@ -382,4 +384,72 @@ func randomString(length int) string {
 		result[i] = charset[time.Now().UnixNano()%int64(len(charset))]
 	}
 	return string(result)
+}
+
+// AdminAuth creates a middleware that validates JWT tokens and checks for admin scope.
+// This middleware is used to protect admin endpoints that require elevated privileges.
+//
+// The middleware performs the following validations:
+//  1. Checks for Authorization header with Bearer token
+//  2. Validates the JWT token using the provided token service
+//  3. Checks if the token contains 'admin' or 'admin:cache' scope
+//
+// Returns:
+//   - 401 Unauthorized: Missing or invalid token
+//   - 403 Forbidden: Token valid but lacks admin scope
+func (m *Stack) AdminAuth(tokenSvc token.Service) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get(constants.HeaderAuthorization)
+			if authHeader == "" {
+				m.writeAdminAuthError(w, "Authorization header required", http.StatusUnauthorized)
+				return
+			}
+
+			if !strings.HasPrefix(authHeader, "Bearer ") {
+				m.writeAdminAuthError(w, "Invalid authorization header format", http.StatusUnauthorized)
+				return
+			}
+
+			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+			accessToken, _, err := tokenSvc.ValidateAccessToken(tokenString)
+			if err != nil {
+				m.logger.WithError(err).Warn("Invalid admin access token")
+				m.writeAdminAuthError(w, "Invalid access token", http.StatusUnauthorized)
+				return
+			}
+
+			// Check for admin scope
+			hasAdminScope := false
+			for _, scope := range accessToken.Scopes {
+				if scope == "admin" || scope == "admin:cache" {
+					hasAdminScope = true
+					break
+				}
+			}
+
+			if !hasAdminScope {
+				m.logger.WithField("scopes", accessToken.Scopes).Warn("Insufficient permissions for admin endpoint")
+				m.writeAdminAuthError(w, "Insufficient permissions", http.StatusForbidden)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// writeAdminAuthError writes a JSON error response for admin authentication failures.
+func (m *Stack) writeAdminAuthError(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set(constants.HeaderContentType, constants.ContentTypeJSON)
+	w.WriteHeader(statusCode)
+
+	response := map[string]interface{}{
+		"error":             "authentication_error",
+		"error_description": message,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		m.logger.WithError(err).Error("Failed to encode admin auth error response")
+	}
 }

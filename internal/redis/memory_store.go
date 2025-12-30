@@ -563,3 +563,77 @@ func (m *MemoryStore) DeletePasswordResetToken(_ context.Context, token string) 
 	m.logger.WithField("token", maskToken(token)).Debug("Password reset token deleted from memory")
 	return nil
 }
+
+// GetSessionStats retrieves statistics about sessions stored in the memory store.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//   - req: Request containing flags for optional TTL information
+//
+// Returns:
+//   - *models.SessionStats: Session statistics including counts, memory usage, and TTL info
+//   - error: Always nil for memory store
+func (m *MemoryStore) GetSessionStats(
+	_ context.Context,
+	req *models.SessionStatsRequest,
+) (*models.SessionStats, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	now := time.Now()
+	activeCount := 0
+	var ttls []time.Duration
+
+	// Count active sessions and collect TTLs
+	for _, session := range m.sessions {
+		if !session.isExpired() {
+			activeCount++
+			remaining := time.Until(session.ExpiresAt)
+			if remaining > 0 {
+				ttls = append(ttls, remaining)
+			}
+		}
+	}
+
+	stats := &models.SessionStats{
+		TotalSessions:  len(m.sessions),
+		ActiveSessions: activeCount,
+		MemoryUsage:    "in-memory (not tracked)",
+	}
+
+	// Build TTL info if any TTL-related flags are set
+	if req.IncludeTTLPolicy || req.IncludeTTLDistribution || req.IncludeTTLSummary {
+		stats.TTLInfo = m.buildMemoryStoreTTLInfo(activeCount, ttls, req)
+	}
+
+	m.logger.WithFields(logrus.Fields{
+		"total_sessions":  stats.TotalSessions,
+		"active_sessions": stats.ActiveSessions,
+		"now":             now,
+	}).Debug("Session stats retrieved from memory store")
+
+	return stats, nil
+}
+
+// buildMemoryStoreTTLInfo constructs TTL information for memory store.
+func (m *MemoryStore) buildMemoryStoreTTLInfo(
+	activeCount int,
+	ttls []time.Duration,
+	req *models.SessionStatsRequest,
+) *models.TTLInfo {
+	ttlInfo := &models.TTLInfo{}
+
+	if req.IncludeTTLPolicy {
+		ttlInfo.TTLPolicyUsage = buildTTLPolicyUsage(activeCount)
+	}
+
+	if req.IncludeTTLDistribution {
+		ttlInfo.TTLDistribution = buildTTLDistribution(ttls)
+	}
+
+	if req.IncludeTTLSummary {
+		ttlInfo.TTLSummary = buildTTLSummary(ttls)
+	}
+
+	return ttlInfo
+}

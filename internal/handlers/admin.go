@@ -35,6 +35,7 @@ func NewAdminHandler(adminSvc auth.AdminService, cfg *config.Config, logger *log
 // Note: The router should already have admin auth middleware applied.
 func (h *AdminHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/cache/sessions/stats", h.GetSessionStats).Methods(http.MethodGet)
+	router.HandleFunc("/cache/sessions", h.ClearSessions).Methods(http.MethodDelete)
 }
 
 // GetSessionStats handles GET /admin/cache/sessions/stats
@@ -74,6 +75,30 @@ func (h *AdminHandler) GetSessionStats(w http.ResponseWriter, r *http.Request) {
 		"total_sessions":  stats.TotalSessions,
 		"active_sessions": stats.ActiveSessions,
 	}).Info("Session stats retrieved successfully")
+}
+
+// ClearSessions handles DELETE /admin/cache/sessions
+// Clears all cached sessions from the store.
+//
+// Responses:
+//   - 200: Sessions cleared successfully
+//   - 401: Unauthorized (handled by middleware)
+//   - 403: Forbidden (handled by middleware)
+//   - 500: Internal server error
+func (h *AdminHandler) ClearSessions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	h.logger.Info("Processing clear sessions request")
+
+	response, err := h.adminSvc.ClearAllSessions(ctx)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to clear sessions")
+		h.writeErrorResponse(w, "Failed to clear sessions", http.StatusInternalServerError)
+		return
+	}
+
+	h.writeJSONResponse(w, response, http.StatusOK)
+	h.logger.WithField("sessions_cleared", response.SessionsCleared).Info("Sessions cleared successfully")
 }
 
 // parseBoolParam parses a boolean query parameter with default false.

@@ -212,6 +212,11 @@ type Store interface {
 	// Returns session counts, memory usage, and optional TTL information based on the request.
 	// Uses Redis SCAN for session counting and INFO for memory statistics.
 	GetSessionStats(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
+
+	// ClearAllSessions deletes all sessions from the cache.
+	// Uses Redis SCAN + DEL pattern for safe batch deletion.
+	// Returns the number of sessions cleared and any error encountered.
+	ClearAllSessions(ctx context.Context) (int, error)
 }
 
 // NewClient creates a new Redis client instance with the provided configuration.
@@ -1425,4 +1430,45 @@ func buildTTLSummary(ttls []time.Duration) *models.TTLSummary {
 		OldestSessionAgeSeconds: int(oldestAge.Seconds()),
 		TotalSessionsWithTTL:    len(ttls),
 	}
+}
+
+// ClearAllSessions deletes all sessions from Redis using SCAN + DEL pattern.
+// This approach is safe for production use as it does not block the server like KEYS.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Redis operation error, if any
+func (c *Client) ClearAllSessions(ctx context.Context) (int, error) {
+	sessionKeys, err := c.scanSessionKeys(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to scan session keys: %w", err)
+	}
+
+	if len(sessionKeys) == 0 {
+		c.logger.Debug("No sessions to clear")
+		return 0, nil
+	}
+
+	// Delete keys in batches to avoid blocking
+	deleted := 0
+	for i := 0; i < len(sessionKeys); i += ScanBatchSize {
+		end := i + ScanBatchSize
+		if end > len(sessionKeys) {
+			end = len(sessionKeys)
+		}
+
+		batch := sessionKeys[i:end]
+		result, delErr := c.rdb.Del(ctx, batch...).Result()
+		if delErr != nil {
+			c.logger.WithError(delErr).WithField("batch_size", len(batch)).Error("Failed to delete session batch")
+			return deleted, fmt.Errorf("failed to delete session batch: %w", delErr)
+		}
+		deleted += int(result)
+	}
+
+	c.logger.WithField("sessions_cleared", deleted).Info("All sessions cleared successfully")
+	return deleted, nil
 }

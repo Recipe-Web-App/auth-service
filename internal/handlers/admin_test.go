@@ -18,7 +18,8 @@ import (
 
 // mockAdminService implements auth.AdminService for testing.
 type mockAdminService struct {
-	getSessionStatsFunc func(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
+	getSessionStatsFunc  func(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
+	clearAllSessionsFunc func(ctx context.Context) (*models.ClearSessionsResponse, error)
 }
 
 func (m *mockAdminService) GetSessionStats(
@@ -27,6 +28,13 @@ func (m *mockAdminService) GetSessionStats(
 ) (*models.SessionStats, error) {
 	if m.getSessionStatsFunc != nil {
 		return m.getSessionStatsFunc(ctx, req)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockAdminService) ClearAllSessions(ctx context.Context) (*models.ClearSessionsResponse, error) {
+	if m.clearAllSessionsFunc != nil {
+		return m.clearAllSessionsFunc(ctx)
 	}
 	return nil, errors.New("not implemented")
 }
@@ -290,6 +298,109 @@ func TestAdminHandler_GetSessionStats_ContentType(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	handler.GetSessionStats(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+func TestAdminHandler_ClearSessions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		mockFunc       func(ctx context.Context) (*models.ClearSessionsResponse, error)
+		expectedStatus int
+		validateResp   func(t *testing.T, resp *models.ClearSessionsResponse)
+	}{
+		{
+			name: "successful_clear_with_sessions",
+			mockFunc: func(_ context.Context) (*models.ClearSessionsResponse, error) {
+				return &models.ClearSessionsResponse{
+					Success:         true,
+					Message:         "Successfully cleared 10 sessions from cache",
+					SessionsCleared: 10,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			validateResp: func(t *testing.T, resp *models.ClearSessionsResponse) {
+				assert.True(t, resp.Success)
+				assert.Equal(t, 10, resp.SessionsCleared)
+				assert.Contains(t, resp.Message, "Successfully cleared")
+			},
+		},
+		{
+			name: "successful_clear_no_sessions",
+			mockFunc: func(_ context.Context) (*models.ClearSessionsResponse, error) {
+				return &models.ClearSessionsResponse{
+					Success:         true,
+					Message:         "Successfully cleared 0 sessions from cache",
+					SessionsCleared: 0,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			validateResp: func(t *testing.T, resp *models.ClearSessionsResponse) {
+				assert.True(t, resp.Success)
+				assert.Equal(t, 0, resp.SessionsCleared)
+			},
+		},
+		{
+			name: "service_error",
+			mockFunc: func(_ context.Context) (*models.ClearSessionsResponse, error) {
+				return nil, errors.New("redis connection failed")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateResp:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockSvc := &mockAdminService{
+				clearAllSessionsFunc: tt.mockFunc,
+			}
+
+			log := logger.New("debug", "json", "stdout")
+			handler := handlers.NewAdminHandler(mockSvc, nil, log)
+
+			req := httptest.NewRequest(http.MethodDelete, "/admin/cache/sessions", nil)
+			rr := httptest.NewRecorder()
+
+			handler.ClearSessions(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+
+			if tt.expectedStatus == http.StatusOK && tt.validateResp != nil {
+				var response models.ClearSessionsResponse
+				err := json.Unmarshal(rr.Body.Bytes(), &response)
+				require.NoError(t, err)
+				tt.validateResp(t, &response)
+			}
+		})
+	}
+}
+
+func TestAdminHandler_ClearSessions_ContentType(t *testing.T) {
+	t.Parallel()
+
+	mockSvc := &mockAdminService{
+		clearAllSessionsFunc: func(_ context.Context) (*models.ClearSessionsResponse, error) {
+			return &models.ClearSessionsResponse{
+				Success:         true,
+				Message:         "Successfully cleared 5 sessions from cache",
+				SessionsCleared: 5,
+			}, nil
+		},
+	}
+
+	log := logger.New("debug", "json", "stdout")
+	handler := handlers.NewAdminHandler(mockSvc, nil, log)
+
+	req := httptest.NewRequest(http.MethodDelete, "/admin/cache/sessions", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ClearSessions(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))

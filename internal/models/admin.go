@@ -45,3 +45,10 @@ type SessionStatsRequest struct {
 	IncludeTTLDistribution bool
 	IncludeTTLSummary      bool
 }
+
+// ClearSessionsResponse represents the response for clearing cached sessions.
+type ClearSessionsResponse struct {
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	SessionsCleared int    `json:"sessionsCleared"`
+}

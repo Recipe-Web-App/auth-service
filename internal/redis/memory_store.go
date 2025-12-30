@@ -637,3 +637,30 @@ func (m *MemoryStore) buildMemoryStoreTTLInfo(
 
 	return ttlInfo
 }
+
+// ClearAllSessions deletes all sessions from the memory store.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Always nil for memory store
+func (m *MemoryStore) ClearAllSessions(_ context.Context) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Count active (non-expired) sessions before clearing
+	count := 0
+	for _, session := range m.sessions {
+		if !session.isExpired() {
+			count++
+		}
+	}
+
+	// Clear all sessions
+	m.sessions = make(map[string]*expiringItem[*models.Session])
+
+	m.logger.WithField("sessions_cleared", count).Info("All sessions cleared from memory store")
+	return count, nil
+}

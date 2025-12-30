@@ -84,6 +84,10 @@ func TestRedisIntegration(t *testing.T) {
 	t.Run("TokenBlacklist", func(t *testing.T) {
 		testTokenBlacklist(ctx, t, store)
 	})
+
+	t.Run("ClearAllSessions", func(t *testing.T) {
+		testClearAllSessions(ctx, t, store)
+	})
 }
 
 func testClientOperations(ctx context.Context, t *testing.T, store redisClient.Store) {
@@ -288,4 +292,67 @@ func testTokenBlacklist(ctx context.Context, t *testing.T, store redisClient.Sto
 	blacklisted, err = store.IsTokenBlacklisted(ctx, token)
 	require.NoError(t, err)
 	assert.True(t, blacklisted)
+}
+
+func testClearAllSessions(ctx context.Context, t *testing.T, store redisClient.Store) {
+	t.Run("EmptyStore", func(t *testing.T) {
+		// Clear should work on empty store
+		count, err := store.ClearAllSessions(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("WithSessions", func(t *testing.T) {
+		// Create test sessions
+		for i := range 5 {
+			session := models.NewSession("user-"+string(rune('a'+i)), testClient)
+			err := store.StoreSession(ctx, session, time.Hour)
+			require.NoError(t, err)
+		}
+
+		// Verify sessions exist
+		stats, err := store.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 5, stats.TotalSessions)
+
+		// Clear all sessions
+		count, err := store.ClearAllSessions(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 5, count)
+
+		// Verify sessions are cleared
+		stats, err = store.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, stats.TotalSessions)
+	})
+
+	t.Run("DoesNotAffectOtherKeys", func(t *testing.T) {
+		// Store a client (not a session)
+		client := models.NewClient(
+			"Test Client For ClearSessions",
+			[]string{"http://localhost:3000/callback"},
+			[]string{"read"},
+			[]string{"authorization_code"},
+		)
+		err := store.StoreClient(ctx, client)
+		require.NoError(t, err)
+
+		// Store a session
+		session := models.NewSession(testUser, testClient)
+		err = store.StoreSession(ctx, session, time.Hour)
+		require.NoError(t, err)
+
+		// Clear sessions
+		count, err := store.ClearAllSessions(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		// Verify client still exists
+		retrievedClient, err := store.GetClient(ctx, client.ID)
+		require.NoError(t, err)
+		assert.Equal(t, client.ID, retrievedClient.ID)
+
+		// Cleanup
+		_ = store.DeleteClient(ctx, client.ID)
+	})
 }

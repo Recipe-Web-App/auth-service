@@ -151,3 +151,75 @@ func TestAdminService_GetSessionStats_MemoryUsage(t *testing.T) {
 	// Memory store should return a specific message
 	assert.Equal(t, "in-memory (not tracked)", stats.MemoryUsage)
 }
+
+func TestAdminService_ClearAllSessions(t *testing.T) {
+	log := logger.New("debug", "json", "stdout")
+	store := redis.NewMemoryStore(log)
+	t.Cleanup(func() { _ = store.Close() })
+
+	svc := auth.NewAdminService(nil, store, log)
+	ctx := context.Background()
+
+	t.Run("empty_store", func(t *testing.T) {
+		response, err := svc.ClearAllSessions(ctx)
+		require.NoError(t, err)
+		assert.True(t, response.Success)
+		assert.Equal(t, 0, response.SessionsCleared)
+		assert.Contains(t, response.Message, "0 sessions")
+	})
+
+	// Create test sessions
+	for i := range 5 {
+		session := models.NewSession("user-"+string(rune('a'+i)), "client-1")
+		err := store.StoreSession(ctx, session, models.DefaultSessionExpiry)
+		require.NoError(t, err)
+	}
+
+	t.Run("clear_sessions", func(t *testing.T) {
+		// Verify sessions exist
+		stats, err := svc.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 5, stats.ActiveSessions)
+
+		// Clear sessions
+		response, err := svc.ClearAllSessions(ctx)
+		require.NoError(t, err)
+		assert.True(t, response.Success)
+		assert.Equal(t, 5, response.SessionsCleared)
+		assert.Contains(t, response.Message, "5 sessions")
+
+		// Verify sessions are cleared
+		stats, err = svc.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, stats.ActiveSessions)
+	})
+}
+
+func TestAdminService_ClearAllSessions_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	log := logger.New("debug", "json", "stdout")
+	store := redis.NewMemoryStore(log)
+	t.Cleanup(func() { _ = store.Close() })
+
+	svc := auth.NewAdminService(nil, store, log)
+	ctx := context.Background()
+
+	// Create sessions
+	for i := range 3 {
+		session := models.NewSession("user-"+string(rune('a'+i)), "client-1")
+		err := store.StoreSession(ctx, session, models.DefaultSessionExpiry)
+		require.NoError(t, err)
+	}
+
+	// First clear
+	response1, err := svc.ClearAllSessions(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, response1.SessionsCleared)
+
+	// Second clear (should be idempotent)
+	response2, err := svc.ClearAllSessions(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, response2.SessionsCleared)
+	assert.True(t, response2.Success)
+}

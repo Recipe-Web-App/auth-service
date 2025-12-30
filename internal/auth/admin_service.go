@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 
@@ -15,6 +16,9 @@ import (
 type AdminService interface {
 	// GetSessionStats retrieves statistics about current sessions in the cache.
 	GetSessionStats(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
+
+	// ClearAllSessions clears all sessions from the cache.
+	ClearAllSessions(ctx context.Context) (*models.ClearSessionsResponse, error)
 }
 
 // adminService implements the AdminService interface.
@@ -63,4 +67,24 @@ func (s *adminService) GetSessionStats(
 	}).Info("Session statistics retrieved successfully")
 
 	return stats, nil
+}
+
+// ClearAllSessions clears all sessions from the cache.
+// It delegates to the Redis store to perform the actual deletion.
+func (s *adminService) ClearAllSessions(ctx context.Context) (*models.ClearSessionsResponse, error) {
+	s.logger.Info("Clearing all sessions from cache")
+
+	count, err := s.store.ClearAllSessions(ctx)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to clear sessions")
+		return nil, err
+	}
+
+	s.logger.WithField("sessions_cleared", count).Info("Sessions cleared successfully")
+
+	return &models.ClearSessionsResponse{
+		Success:         true,
+		Message:         fmt.Sprintf("Successfully cleared %d sessions from cache", count),
+		SessionsCleared: count,
+	}, nil
 }

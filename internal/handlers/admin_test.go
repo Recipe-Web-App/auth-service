@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +21,7 @@ import (
 type mockAdminService struct {
 	getSessionStatsFunc  func(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
 	clearAllSessionsFunc func(ctx context.Context) (*models.ClearSessionsResponse, error)
+	forceLogoutUserFunc  func(ctx context.Context, userID string) (*models.ForceLogoutResponse, error)
 }
 
 func (m *mockAdminService) GetSessionStats(
@@ -35,6 +37,13 @@ func (m *mockAdminService) GetSessionStats(
 func (m *mockAdminService) ClearAllSessions(ctx context.Context) (*models.ClearSessionsResponse, error) {
 	if m.clearAllSessionsFunc != nil {
 		return m.clearAllSessionsFunc(ctx)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockAdminService) ForceLogoutUser(ctx context.Context, userID string) (*models.ForceLogoutResponse, error) {
+	if m.forceLogoutUserFunc != nil {
+		return m.forceLogoutUserFunc(ctx, userID)
 	}
 	return nil, errors.New("not implemented")
 }
@@ -401,6 +410,139 @@ func TestAdminHandler_ClearSessions_ContentType(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	handler.ClearSessions(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+func TestAdminHandler_ForceLogout(t *testing.T) {
+	t.Parallel()
+
+	validUserID := "550e8400-e29b-41d4-a716-446655440000"
+
+	tests := []struct {
+		name           string
+		userID         string
+		mockFunc       func(ctx context.Context, userID string) (*models.ForceLogoutResponse, error)
+		expectedStatus int
+		validateResp   func(t *testing.T, resp *models.ForceLogoutResponse)
+	}{
+		{
+			name:   "successful_force_logout_with_sessions",
+			userID: validUserID,
+			mockFunc: func(_ context.Context, userID string) (*models.ForceLogoutResponse, error) {
+				return &models.ForceLogoutResponse{
+					Success:         true,
+					Message:         "Successfully logged out user and cleared 3 sessions",
+					UserID:          userID,
+					SessionsCleared: 3,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			validateResp: func(t *testing.T, resp *models.ForceLogoutResponse) {
+				assert.True(t, resp.Success)
+				assert.Equal(t, validUserID, resp.UserID)
+				assert.Equal(t, 3, resp.SessionsCleared)
+				assert.Contains(t, resp.Message, "Successfully logged out")
+			},
+		},
+		{
+			name:   "successful_force_logout_no_sessions",
+			userID: validUserID,
+			mockFunc: func(_ context.Context, userID string) (*models.ForceLogoutResponse, error) {
+				return &models.ForceLogoutResponse{
+					Success:         true,
+					Message:         "Successfully logged out user and cleared 0 sessions",
+					UserID:          userID,
+					SessionsCleared: 0,
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			validateResp: func(t *testing.T, resp *models.ForceLogoutResponse) {
+				assert.True(t, resp.Success)
+				assert.Equal(t, validUserID, resp.UserID)
+				assert.Equal(t, 0, resp.SessionsCleared)
+			},
+		},
+		{
+			name:           "invalid_user_id_format",
+			userID:         "not-a-uuid",
+			mockFunc:       nil, // Should not be called
+			expectedStatus: http.StatusBadRequest,
+			validateResp:   nil,
+		},
+		{
+			name:           "empty_user_id",
+			userID:         "",
+			mockFunc:       nil, // Should not be called
+			expectedStatus: http.StatusBadRequest,
+			validateResp:   nil,
+		},
+		{
+			name:   "service_error",
+			userID: validUserID,
+			mockFunc: func(_ context.Context, _ string) (*models.ForceLogoutResponse, error) {
+				return nil, errors.New("redis connection failed")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateResp:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockSvc := &mockAdminService{
+				forceLogoutUserFunc: tt.mockFunc,
+			}
+
+			log := logger.New("debug", "json", "stdout")
+			handler := handlers.NewAdminHandler(mockSvc, nil, log)
+
+			// Create request with mux vars to simulate path parameter
+			req := httptest.NewRequest(http.MethodPost, "/admin/user-management/"+tt.userID+"/force-logout", nil)
+			req = mux.SetURLVars(req, map[string]string{"userId": tt.userID})
+			rr := httptest.NewRecorder()
+
+			handler.ForceLogout(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code)
+
+			if tt.expectedStatus == http.StatusOK && tt.validateResp != nil {
+				var response models.ForceLogoutResponse
+				err := json.Unmarshal(rr.Body.Bytes(), &response)
+				require.NoError(t, err)
+				tt.validateResp(t, &response)
+			}
+		})
+	}
+}
+
+func TestAdminHandler_ForceLogout_ContentType(t *testing.T) {
+	t.Parallel()
+
+	validUserID := "550e8400-e29b-41d4-a716-446655440000"
+
+	mockSvc := &mockAdminService{
+		forceLogoutUserFunc: func(_ context.Context, userID string) (*models.ForceLogoutResponse, error) {
+			return &models.ForceLogoutResponse{
+				Success:         true,
+				Message:         "Successfully logged out user and cleared 1 session",
+				UserID:          userID,
+				SessionsCleared: 1,
+			}, nil
+		},
+	}
+
+	log := logger.New("debug", "json", "stdout")
+	handler := handlers.NewAdminHandler(mockSvc, nil, log)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/user-management/"+validUserID+"/force-logout", nil)
+	req = mux.SetURLVars(req, map[string]string{"userId": validUserID})
+	rr := httptest.NewRecorder()
+
+	handler.ForceLogout(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))

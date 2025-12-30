@@ -223,3 +223,100 @@ func TestAdminService_ClearAllSessions_Idempotent(t *testing.T) {
 	assert.Equal(t, 0, response2.SessionsCleared)
 	assert.True(t, response2.Success)
 }
+
+func TestAdminService_ForceLogoutUser(t *testing.T) {
+	log := logger.New("debug", "json", "stdout")
+	store := redis.NewMemoryStore(log)
+	t.Cleanup(func() { _ = store.Close() })
+
+	svc := auth.NewAdminService(nil, store, log)
+	ctx := context.Background()
+
+	targetUserID := "user-target"
+	otherUserID := "user-other"
+
+	t.Run("empty_store", func(t *testing.T) {
+		response, err := svc.ForceLogoutUser(ctx, targetUserID)
+		require.NoError(t, err)
+		assert.True(t, response.Success)
+		assert.Equal(t, targetUserID, response.UserID)
+		assert.Equal(t, 0, response.SessionsCleared)
+		assert.Contains(t, response.Message, "0 sessions")
+	})
+
+	// Create sessions for target user
+	for i := range 3 {
+		session := models.NewSession(targetUserID, "client-"+string(rune('1'+i)))
+		err := store.StoreSession(ctx, session, models.DefaultSessionExpiry)
+		require.NoError(t, err)
+	}
+
+	// Create sessions for other user
+	for i := range 2 {
+		session := models.NewSession(otherUserID, "client-"+string(rune('1'+i)))
+		err := store.StoreSession(ctx, session, models.DefaultSessionExpiry)
+		require.NoError(t, err)
+	}
+
+	t.Run("force_logout_target_user", func(t *testing.T) {
+		// Verify all sessions exist
+		stats, err := svc.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 5, stats.ActiveSessions)
+
+		// Force logout target user
+		response, err := svc.ForceLogoutUser(ctx, targetUserID)
+		require.NoError(t, err)
+		assert.True(t, response.Success)
+		assert.Equal(t, targetUserID, response.UserID)
+		assert.Equal(t, 3, response.SessionsCleared)
+		assert.Contains(t, response.Message, "3 sessions")
+
+		// Verify only target user's sessions are cleared
+		stats, err = svc.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 2, stats.ActiveSessions) // Only other user's sessions remain
+	})
+
+	t.Run("force_logout_already_logged_out_user", func(t *testing.T) {
+		// Force logout target user again (should be idempotent)
+		response, err := svc.ForceLogoutUser(ctx, targetUserID)
+		require.NoError(t, err)
+		assert.True(t, response.Success)
+		assert.Equal(t, targetUserID, response.UserID)
+		assert.Equal(t, 0, response.SessionsCleared)
+	})
+}
+
+func TestAdminService_ForceLogoutUser_WithExpiredSessions(t *testing.T) {
+	t.Parallel()
+
+	log := logger.New("debug", "json", "stdout")
+	store := redis.NewMemoryStore(log)
+	t.Cleanup(func() { _ = store.Close() })
+
+	svc := auth.NewAdminService(nil, store, log)
+	ctx := context.Background()
+
+	targetUserID := "user-target"
+
+	// Create one session with very short TTL that will expire
+	session1 := models.NewSession(targetUserID, "client-1")
+	err := store.StoreSession(ctx, session1, 1*time.Millisecond)
+	require.NoError(t, err)
+
+	// Create another session with long TTL
+	session2 := models.NewSession(targetUserID, "client-2")
+	err = store.StoreSession(ctx, session2, 24*time.Hour)
+	require.NoError(t, err)
+
+	// Wait for short TTL session to expire
+	time.Sleep(10 * time.Millisecond)
+
+	// Force logout should only count active sessions
+	response, err := svc.ForceLogoutUser(ctx, targetUserID)
+	require.NoError(t, err)
+	assert.True(t, response.Success)
+	assert.Equal(t, targetUserID, response.UserID)
+	assert.Equal(t, 1, response.SessionsCleared) // Only active session counts
+}

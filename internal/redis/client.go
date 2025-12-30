@@ -217,6 +217,11 @@ type Store interface {
 	// Uses Redis SCAN + DEL pattern for safe batch deletion.
 	// Returns the number of sessions cleared and any error encountered.
 	ClearAllSessions(ctx context.Context) (int, error)
+
+	// ClearUserSessions deletes all sessions for a specific user from the cache.
+	// Scans all session keys and filters by userID before deletion.
+	// Returns the number of sessions cleared and any error encountered.
+	ClearUserSessions(ctx context.Context, userID string) (int, error)
 }
 
 // NewClient creates a new Redis client instance with the provided configuration.
@@ -1470,5 +1475,80 @@ func (c *Client) ClearAllSessions(ctx context.Context) (int, error) {
 	}
 
 	c.logger.WithField("sessions_cleared", deleted).Info("All sessions cleared successfully")
+	return deleted, nil
+}
+
+// ClearUserSessions deletes all sessions for a specific user from Redis.
+// This approach scans all session keys, retrieves each session to check the UserID,
+// and deletes matching sessions.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - userID: The ID of the user whose sessions should be cleared
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Redis operation error, if any
+func (c *Client) ClearUserSessions(ctx context.Context, userID string) (int, error) {
+	sessionKeys, err := c.scanSessionKeys(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to scan session keys: %w", err)
+	}
+
+	if len(sessionKeys) == 0 {
+		c.logger.WithField("user_id", userID).Debug("No sessions to check for user")
+		return 0, nil
+	}
+
+	// Find sessions belonging to the target user
+	var keysToDelete []string
+	for _, key := range sessionKeys {
+		data, getErr := c.rdb.Get(ctx, key).Bytes()
+		if getErr != nil {
+			// Skip keys that no longer exist or can't be read
+			c.logger.WithError(getErr).WithField("key", key).Debug("Failed to get session, skipping")
+			continue
+		}
+
+		var session models.Session
+		if unmarshalErr := json.Unmarshal(data, &session); unmarshalErr != nil {
+			c.logger.WithError(unmarshalErr).WithField("key", key).Debug("Failed to unmarshal session, skipping")
+			continue
+		}
+
+		if session.UserID == userID {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+
+	if len(keysToDelete) == 0 {
+		c.logger.WithField("user_id", userID).Debug("No sessions found for user")
+		return 0, nil
+	}
+
+	// Delete keys in batches to avoid blocking
+	deleted := 0
+	for i := 0; i < len(keysToDelete); i += ScanBatchSize {
+		end := i + ScanBatchSize
+		if end > len(keysToDelete) {
+			end = len(keysToDelete)
+		}
+
+		batch := keysToDelete[i:end]
+		result, delErr := c.rdb.Del(ctx, batch...).Result()
+		if delErr != nil {
+			c.logger.WithError(delErr).WithFields(logrus.Fields{
+				"batch_size": len(batch),
+				"user_id":    userID,
+			}).Error("Failed to delete user session batch")
+			return deleted, fmt.Errorf("failed to delete user session batch: %w", delErr)
+		}
+		deleted += int(result)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"sessions_cleared": deleted,
+		"user_id":          userID,
+	}).Info("User sessions cleared successfully")
 	return deleted, nil
 }

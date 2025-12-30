@@ -52,3 +52,11 @@ type ClearSessionsResponse struct {
 	Message         string `json:"message"`
 	SessionsCleared int    `json:"sessionsCleared"`
 }
+
+// ForceLogoutResponse represents the response for forcing a user logout.
+type ForceLogoutResponse struct {
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	UserID          string `json:"userId"`
+	SessionsCleared int    `json:"sessionsCleared,omitempty"`
+}

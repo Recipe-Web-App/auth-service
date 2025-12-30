@@ -19,6 +19,9 @@ type AdminService interface {
 
 	// ClearAllSessions clears all sessions from the cache.
 	ClearAllSessions(ctx context.Context) (*models.ClearSessionsResponse, error)
+
+	// ForceLogoutUser clears all sessions for a specific user.
+	ForceLogoutUser(ctx context.Context, userID string) (*models.ForceLogoutResponse, error)
 }
 
 // adminService implements the AdminService interface.
@@ -85,6 +88,30 @@ func (s *adminService) ClearAllSessions(ctx context.Context) (*models.ClearSessi
 	return &models.ClearSessionsResponse{
 		Success:         true,
 		Message:         fmt.Sprintf("Successfully cleared %d sessions from cache", count),
+		SessionsCleared: count,
+	}, nil
+}
+
+// ForceLogoutUser clears all sessions for a specific user.
+// It delegates to the Redis store to perform the actual deletion.
+func (s *adminService) ForceLogoutUser(ctx context.Context, userID string) (*models.ForceLogoutResponse, error) {
+	s.logger.WithField("user_id", userID).Info("Force logging out user")
+
+	count, err := s.store.ClearUserSessions(ctx, userID)
+	if err != nil {
+		s.logger.WithError(err).WithField("user_id", userID).Error("Failed to clear user sessions")
+		return nil, err
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"sessions_cleared": count,
+		"user_id":          userID,
+	}).Info("User sessions cleared successfully")
+
+	return &models.ForceLogoutResponse{
+		Success:         true,
+		Message:         fmt.Sprintf("Successfully logged out user and cleared %d sessions", count),
+		UserID:          userID,
 		SessionsCleared: count,
 	}, nil
 }

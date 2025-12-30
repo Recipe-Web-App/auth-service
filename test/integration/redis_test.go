@@ -88,6 +88,10 @@ func TestRedisIntegration(t *testing.T) {
 	t.Run("ClearAllSessions", func(t *testing.T) {
 		testClearAllSessions(ctx, t, store)
 	})
+
+	t.Run("ClearUserSessions", func(t *testing.T) {
+		testClearUserSessions(ctx, t, store)
+	})
 }
 
 func testClientOperations(ctx context.Context, t *testing.T, store redisClient.Store) {
@@ -344,6 +348,102 @@ func testClearAllSessions(ctx context.Context, t *testing.T, store redisClient.S
 
 		// Clear sessions
 		count, err := store.ClearAllSessions(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		// Verify client still exists
+		retrievedClient, err := store.GetClient(ctx, client.ID)
+		require.NoError(t, err)
+		assert.Equal(t, client.ID, retrievedClient.ID)
+
+		// Cleanup
+		_ = store.DeleteClient(ctx, client.ID)
+	})
+}
+
+func testClearUserSessions(ctx context.Context, t *testing.T, store redisClient.Store) {
+	targetUserID := "user-target-integration"
+	otherUserID := "user-other-integration"
+
+	t.Run("EmptyStore", func(t *testing.T) {
+		// Clear should work on empty store
+		count, err := store.ClearUserSessions(ctx, targetUserID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("ClearOnlyTargetUserSessions", func(t *testing.T) {
+		// Create sessions for target user
+		for i := range 3 {
+			session := models.NewSession(targetUserID, testClient+"-"+string(rune('1'+i)))
+			err := store.StoreSession(ctx, session, time.Hour)
+			require.NoError(t, err)
+		}
+
+		// Create sessions for other user
+		for i := range 2 {
+			session := models.NewSession(otherUserID, testClient+"-"+string(rune('a'+i)))
+			err := store.StoreSession(ctx, session, time.Hour)
+			require.NoError(t, err)
+		}
+
+		// Verify all sessions exist
+		stats, err := store.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 5, stats.TotalSessions)
+
+		// Clear only target user's sessions
+		count, err := store.ClearUserSessions(ctx, targetUserID)
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+
+		// Verify only other user's sessions remain
+		stats, err = store.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 2, stats.TotalSessions)
+
+		// Cleanup remaining sessions
+		_, _ = store.ClearAllSessions(ctx)
+	})
+
+	t.Run("ClearNonExistentUser", func(t *testing.T) {
+		// Create a session for existing user
+		session := models.NewSession("existing-user", testClient)
+		err := store.StoreSession(ctx, session, time.Hour)
+		require.NoError(t, err)
+
+		// Try to clear sessions for non-existent user
+		count, err := store.ClearUserSessions(ctx, "non-existent-user-id")
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+
+		// Verify existing user's session still exists
+		stats, err := store.GetSessionStats(ctx, &models.SessionStatsRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats.TotalSessions)
+
+		// Cleanup
+		_, _ = store.ClearAllSessions(ctx)
+	})
+
+	t.Run("DoesNotAffectOtherKeys", func(t *testing.T) {
+		// Store a client (not a session)
+		client := models.NewClient(
+			"Test Client For ClearUserSessions",
+			[]string{"http://localhost:3000/callback"},
+			[]string{"read"},
+			[]string{"authorization_code"},
+		)
+		err := store.StoreClient(ctx, client)
+		require.NoError(t, err)
+
+		// Store a session for the target user
+		session := models.NewSession(targetUserID, testClient)
+		err = store.StoreSession(ctx, session, time.Hour)
+		require.NoError(t, err)
+
+		// Clear target user's sessions
+		count, err := store.ClearUserSessions(ctx, targetUserID)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
 

@@ -1009,7 +1009,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ClearSessionsResponse"
+                $ref: "#/components/schemas/ForceLogoutResponse"
+        "400":
+          description: Invalid user ID format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthErrorResponse"
         "401":
           description: Unauthorized
           content:
@@ -1022,8 +1028,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthErrorResponse"
-        "422":
-          description: Validation failed
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:

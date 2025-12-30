@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 
@@ -36,6 +37,7 @@ func NewAdminHandler(adminSvc auth.AdminService, cfg *config.Config, logger *log
 func (h *AdminHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/cache/sessions/stats", h.GetSessionStats).Methods(http.MethodGet)
 	router.HandleFunc("/cache/sessions", h.ClearSessions).Methods(http.MethodDelete)
+	router.HandleFunc("/user-management/{userId}/force-logout", h.ForceLogout).Methods(http.MethodPost)
 }
 
 // GetSessionStats handles GET /admin/cache/sessions/stats
@@ -99,6 +101,46 @@ func (h *AdminHandler) ClearSessions(w http.ResponseWriter, r *http.Request) {
 
 	h.writeJSONResponse(w, response, http.StatusOK)
 	h.logger.WithField("sessions_cleared", response.SessionsCleared).Info("Sessions cleared successfully")
+}
+
+// ForceLogout handles POST /admin/user-management/{userId}/force-logout
+// Forces a user logout by clearing all their sessions.
+//
+// Path Parameters:
+//   - userId: The UUID of the user to force logout
+//
+// Responses:
+//   - 200: User logged out successfully
+//   - 400: Invalid user ID format
+//   - 401: Unauthorized (handled by middleware)
+//   - 403: Forbidden (handled by middleware)
+//   - 500: Internal server error
+func (h *AdminHandler) ForceLogout(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	vars := mux.Vars(r)
+	userID := vars["userId"]
+
+	h.logger.WithField("user_id", userID).Info("Processing force logout request")
+
+	// Validate UUID format
+	if _, err := uuid.Parse(userID); err != nil {
+		h.logger.WithError(err).WithField("user_id", userID).Warn("Invalid user ID format")
+		h.writeErrorResponse(w, "Invalid user ID format: must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.adminSvc.ForceLogoutUser(ctx, userID)
+	if err != nil {
+		h.logger.WithError(err).WithField("user_id", userID).Error("Failed to force logout user")
+		h.writeErrorResponse(w, "Failed to force logout user", http.StatusInternalServerError)
+		return
+	}
+
+	h.writeJSONResponse(w, response, http.StatusOK)
+	h.logger.WithFields(logrus.Fields{
+		"user_id":          userID,
+		"sessions_cleared": response.SessionsCleared,
+	}).Info("User force logout successful")
 }
 
 // parseBoolParam parses a boolean query parameter with default false.

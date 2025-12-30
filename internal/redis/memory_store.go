@@ -664,3 +664,37 @@ func (m *MemoryStore) ClearAllSessions(_ context.Context) (int, error) {
 	m.logger.WithField("sessions_cleared", count).Info("All sessions cleared from memory store")
 	return count, nil
 }
+
+// ClearUserSessions deletes all sessions for a specific user from the memory store.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//   - userID: The ID of the user whose sessions should be cleared
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Always nil for memory store
+func (m *MemoryStore) ClearUserSessions(_ context.Context, userID string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Find and delete sessions belonging to the target user
+	var keysToDelete []string
+	for key, item := range m.sessions {
+		if !item.isExpired() && item.Data.UserID == userID {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+
+	// Delete the sessions
+	for _, key := range keysToDelete {
+		delete(m.sessions, key)
+	}
+
+	count := len(keysToDelete)
+	m.logger.WithFields(logrus.Fields{
+		"sessions_cleared": count,
+		"user_id":          userID,
+	}).Info("User sessions cleared from memory store")
+	return count, nil
+}

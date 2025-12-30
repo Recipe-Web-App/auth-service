@@ -207,6 +207,26 @@ type Store interface {
 	// Typically called after password reset to prevent replay attacks.
 	// Returns an error if the Redis delete operation fails.
 	DeletePasswordResetToken(ctx context.Context, token string) error
+
+	// GetSessionStats retrieves statistics about sessions in the cache.
+	// Returns session counts, memory usage, and optional TTL information based on the request.
+	// Uses Redis SCAN for session counting and INFO for memory statistics.
+	GetSessionStats(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error)
+
+	// ClearAllSessions deletes all sessions from the cache.
+	// Uses Redis SCAN + DEL pattern for safe batch deletion.
+	// Returns the number of sessions cleared and any error encountered.
+	ClearAllSessions(ctx context.Context) (int, error)
+
+	// ClearUserSessions deletes all sessions for a specific user from the cache.
+	// Scans all session keys and filters by userID before deletion.
+	// Returns the number of sessions cleared and any error encountered.
+	ClearUserSessions(ctx context.Context, userID string) (int, error)
+
+	// ClearAllCaches deletes all cached data from the store.
+	// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+	// Use with extreme caution as it will invalidate all active sessions and tokens.
+	ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error)
 }
 
 // NewClient creates a new Redis client instance with the provided configuration.
@@ -1187,4 +1207,448 @@ func (c *Client) updateEmailKeys(ctx context.Context, oldEmail, newEmail string,
 	}
 
 	return nil
+}
+
+// GetSessionStats retrieves statistics about sessions stored in Redis.
+// Uses SCAN for session counting and INFO for memory statistics.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - req: Request containing flags for optional TTL information
+//
+// Returns:
+//   - *models.SessionStats: Session statistics including counts, memory usage, and TTL info
+//   - error: Redis operation error, if any
+func (c *Client) GetSessionStats(ctx context.Context, req *models.SessionStatsRequest) (*models.SessionStats, error) {
+	stats := &models.SessionStats{}
+
+	// Count sessions using SCAN with 'auth:session:*' pattern
+	sessionKeys, err := c.scanSessionKeys(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan session keys: %w", err)
+	}
+
+	stats.TotalSessions = len(sessionKeys)
+	stats.ActiveSessions = len(sessionKeys) // All keys in Redis are active (expired ones are auto-removed)
+
+	// Get memory usage using INFO memory command
+	stats.MemoryUsage = c.getMemoryUsage(ctx)
+
+	// Build TTL info if any TTL-related flags are set
+	if req.IncludeTTLPolicy || req.IncludeTTLDistribution || req.IncludeTTLSummary {
+		stats.TTLInfo = c.buildTTLInfo(ctx, sessionKeys, req)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"total_sessions":  stats.TotalSessions,
+		"active_sessions": stats.ActiveSessions,
+	}).Debug("Session stats retrieved successfully")
+
+	return stats, nil
+}
+
+// ScanBatchSize is the number of keys to scan per Redis SCAN iteration.
+const ScanBatchSize = 100
+
+// scanSessionKeys uses Redis SCAN to find all session keys.
+func (c *Client) scanSessionKeys(ctx context.Context) ([]string, error) {
+	var sessionKeys []string
+	var cursor uint64
+	pattern := "auth:session:*"
+
+	for {
+		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, ScanBatchSize).Result()
+		if err != nil {
+			return nil, err
+		}
+
+		sessionKeys = append(sessionKeys, keys...)
+		cursor = nextCursor
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return sessionKeys, nil
+}
+
+// getMemoryUsage retrieves memory usage from Redis INFO command.
+func (c *Client) getMemoryUsage(ctx context.Context) string {
+	info, err := c.rdb.Info(ctx, "memory").Result()
+	if err != nil {
+		c.logger.WithError(err).Warn("Failed to get Redis memory info")
+		return "unavailable"
+	}
+
+	return parseMemoryUsage(info)
+}
+
+// parseMemoryUsage extracts used_memory_human from Redis INFO memory output.
+func parseMemoryUsage(info string) string {
+	lines := splitInfoLines(info)
+	for _, line := range lines {
+		if len(line) > 18 && line[:18] == "used_memory_human:" {
+			return line[18:]
+		}
+	}
+	return "unavailable"
+}
+
+// splitInfoLines splits Redis INFO output into lines.
+func splitInfoLines(info string) []string {
+	var lines []string
+	start := 0
+	for i := range len(info) {
+		if info[i] == '\n' {
+			line := info[start:i]
+			// Remove carriage return if present
+			if len(line) > 0 && line[len(line)-1] == '\r' {
+				line = line[:len(line)-1]
+			}
+			lines = append(lines, line)
+			start = i + 1
+		}
+	}
+	// Handle last line without newline
+	if start < len(info) {
+		lines = append(lines, info[start:])
+	}
+	return lines
+}
+
+// buildTTLInfo constructs TTL information based on request flags.
+func (c *Client) buildTTLInfo(
+	ctx context.Context,
+	sessionKeys []string,
+	req *models.SessionStatsRequest,
+) *models.TTLInfo {
+	ttlInfo := &models.TTLInfo{}
+
+	// Collect TTLs for all sessions
+	ttls := c.collectSessionTTLs(ctx, sessionKeys)
+
+	if req.IncludeTTLPolicy {
+		ttlInfo.TTLPolicyUsage = buildTTLPolicyUsage(len(sessionKeys))
+	}
+
+	if req.IncludeTTLDistribution {
+		ttlInfo.TTLDistribution = buildTTLDistribution(ttls)
+	}
+
+	if req.IncludeTTLSummary {
+		ttlInfo.TTLSummary = buildTTLSummary(ttls)
+	}
+
+	return ttlInfo
+}
+
+// collectSessionTTLs retrieves TTL values for all session keys.
+func (c *Client) collectSessionTTLs(ctx context.Context, sessionKeys []string) []time.Duration {
+	var ttls []time.Duration
+
+	for _, key := range sessionKeys {
+		ttl, err := c.rdb.TTL(ctx, key).Result()
+		if err != nil || ttl < 0 {
+			continue
+		}
+		ttls = append(ttls, ttl)
+	}
+
+	return ttls
+}
+
+// buildTTLPolicyUsage creates the TTL policy usage statistics.
+// Currently supports a single "Default" policy with 24-hour TTL.
+func buildTTLPolicyUsage(sessionCount int) []models.SessionTTLPolicyStats {
+	return []models.SessionTTLPolicyStats{
+		{
+			PolicyName:    "Default",
+			ConfiguredTTL: int(models.DefaultSessionExpiry.Seconds()),
+			Unit:          "seconds",
+			ActiveCount:   sessionCount,
+		},
+	}
+}
+
+// buildTTLDistribution creates histogram buckets for TTL distribution.
+func buildTTLDistribution(ttls []time.Duration) []models.TTLDistributionBucket {
+	buckets := []struct {
+		start    time.Duration
+		end      time.Duration
+		startStr string
+		endStr   string
+	}{
+		{0, 15 * time.Minute, "0m", "15m"},
+		{15 * time.Minute, 60 * time.Minute, "15m", "60m"},
+		{60 * time.Minute, 6 * time.Hour, "1h", "6h"},
+		{6 * time.Hour, 24 * time.Hour, "6h", "24h"},
+		{24 * time.Hour, time.Duration(1<<63 - 1), "24h", "∞"},
+	}
+
+	distribution := make([]models.TTLDistributionBucket, len(buckets))
+	for i, bucket := range buckets {
+		distribution[i] = models.TTLDistributionBucket{
+			RangeStart:   bucket.startStr,
+			RangeEnd:     bucket.endStr,
+			SessionCount: 0,
+		}
+	}
+
+	for _, ttl := range ttls {
+		for i, bucket := range buckets {
+			if ttl >= bucket.start && ttl < bucket.end {
+				distribution[i].SessionCount++
+				break
+			}
+		}
+	}
+
+	return distribution
+}
+
+// buildTTLSummary creates aggregate TTL statistics.
+func buildTTLSummary(ttls []time.Duration) *models.TTLSummary {
+	if len(ttls) == 0 {
+		return &models.TTLSummary{
+			AverageRemainingSeconds: 0,
+			OldestSessionAgeSeconds: 0,
+			TotalSessionsWithTTL:    0,
+		}
+	}
+
+	var totalSeconds int64
+	minTTL := time.Duration(1<<63 - 1) // Max duration
+
+	for _, ttl := range ttls {
+		totalSeconds += int64(ttl.Seconds())
+		if ttl < minTTL {
+			minTTL = ttl
+		}
+	}
+
+	avgSeconds := totalSeconds / int64(len(ttls))
+
+	// Calculate oldest session age: DefaultSessionExpiry - minTTL remaining
+	oldestAge := models.DefaultSessionExpiry - minTTL
+	if oldestAge < 0 {
+		oldestAge = 0
+	}
+
+	return &models.TTLSummary{
+		AverageRemainingSeconds: int(avgSeconds),
+		OldestSessionAgeSeconds: int(oldestAge.Seconds()),
+		TotalSessionsWithTTL:    len(ttls),
+	}
+}
+
+// ClearAllSessions deletes all sessions from Redis using SCAN + DEL pattern.
+// This approach is safe for production use as it does not block the server like KEYS.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Redis operation error, if any
+func (c *Client) ClearAllSessions(ctx context.Context) (int, error) {
+	sessionKeys, err := c.scanSessionKeys(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to scan session keys: %w", err)
+	}
+
+	if len(sessionKeys) == 0 {
+		c.logger.Debug("No sessions to clear")
+		return 0, nil
+	}
+
+	// Delete keys in batches to avoid blocking
+	deleted := 0
+	for i := 0; i < len(sessionKeys); i += ScanBatchSize {
+		end := i + ScanBatchSize
+		if end > len(sessionKeys) {
+			end = len(sessionKeys)
+		}
+
+		batch := sessionKeys[i:end]
+		result, delErr := c.rdb.Del(ctx, batch...).Result()
+		if delErr != nil {
+			c.logger.WithError(delErr).WithField("batch_size", len(batch)).Error("Failed to delete session batch")
+			return deleted, fmt.Errorf("failed to delete session batch: %w", delErr)
+		}
+		deleted += int(result)
+	}
+
+	c.logger.WithField("sessions_cleared", deleted).Info("All sessions cleared successfully")
+	return deleted, nil
+}
+
+// ClearAllCaches deletes all cached data from Redis.
+// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+// Use with extreme caution as it will invalidate all active sessions and tokens.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//
+// Returns:
+//   - *models.ClearAllCachesResponse: Response containing counts of cleared items per cache type
+//   - error: Redis operation error, if any
+func (c *Client) ClearAllCaches(ctx context.Context) (*models.ClearAllCachesResponse, error) {
+	c.logger.Warn("Clearing ALL caches - this is a destructive operation")
+
+	cachePatterns := []struct {
+		name    string
+		pattern string
+	}{
+		{"sessions", "auth:session:*"},
+		{"access_tokens", "auth:access_token:*"},
+		{"refresh_tokens", "auth:refresh_token:*"},
+		{"authorization_codes", "auth:code:*"},
+		{"blacklist", "auth:blacklist:*"},
+		{"clients", "auth:client:*"},
+		{"users", "auth:user:*"},
+		{"password_resets", "auth:password_reset:*"},
+	}
+
+	cachesCleared := make(map[string]int)
+	totalCleared := 0
+
+	for _, cache := range cachePatterns {
+		count, err := c.clearCacheByPattern(ctx, cache.pattern)
+		if err != nil {
+			c.logger.WithError(err).WithField("pattern", cache.pattern).Error("Failed to clear cache pattern")
+			return nil, fmt.Errorf("failed to clear %s cache: %w", cache.name, err)
+		}
+		cachesCleared[cache.name] = count
+		totalCleared += count
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"caches_cleared":     cachesCleared,
+		"total_keys_cleared": totalCleared,
+	}).Warn("All caches cleared successfully")
+
+	return &models.ClearAllCachesResponse{
+		Success:          true,
+		Message:          fmt.Sprintf("Successfully cleared %d keys from all caches", totalCleared),
+		CachesCleared:    cachesCleared,
+		TotalKeysCleared: totalCleared,
+	}, nil
+}
+
+// clearCacheByPattern scans and deletes all keys matching a pattern.
+func (c *Client) clearCacheByPattern(ctx context.Context, pattern string) (int, error) {
+	var allKeys []string
+	var cursor uint64
+
+	for {
+		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, ScanBatchSize).Result()
+		if err != nil {
+			return 0, err
+		}
+
+		allKeys = append(allKeys, keys...)
+		cursor = nextCursor
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if len(allKeys) == 0 {
+		return 0, nil
+	}
+
+	// Delete keys in batches
+	deleted := 0
+	for i := 0; i < len(allKeys); i += ScanBatchSize {
+		end := i + ScanBatchSize
+		if end > len(allKeys) {
+			end = len(allKeys)
+		}
+
+		batch := allKeys[i:end]
+		result, err := c.rdb.Del(ctx, batch...).Result()
+		if err != nil {
+			return deleted, err
+		}
+		deleted += int(result)
+	}
+
+	return deleted, nil
+}
+
+// ClearUserSessions deletes all sessions for a specific user from Redis.
+// This approach scans all session keys, retrieves each session to check the UserID,
+// and deletes matching sessions.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeout control
+//   - userID: The ID of the user whose sessions should be cleared
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Redis operation error, if any
+func (c *Client) ClearUserSessions(ctx context.Context, userID string) (int, error) {
+	sessionKeys, err := c.scanSessionKeys(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to scan session keys: %w", err)
+	}
+
+	if len(sessionKeys) == 0 {
+		c.logger.WithField("user_id", userID).Debug("No sessions to check for user")
+		return 0, nil
+	}
+
+	// Find sessions belonging to the target user
+	var keysToDelete []string
+	for _, key := range sessionKeys {
+		data, getErr := c.rdb.Get(ctx, key).Bytes()
+		if getErr != nil {
+			// Skip keys that no longer exist or can't be read
+			c.logger.WithError(getErr).WithField("key", key).Debug("Failed to get session, skipping")
+			continue
+		}
+
+		var session models.Session
+		if unmarshalErr := json.Unmarshal(data, &session); unmarshalErr != nil {
+			c.logger.WithError(unmarshalErr).WithField("key", key).Debug("Failed to unmarshal session, skipping")
+			continue
+		}
+
+		if session.UserID == userID {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+
+	if len(keysToDelete) == 0 {
+		c.logger.WithField("user_id", userID).Debug("No sessions found for user")
+		return 0, nil
+	}
+
+	// Delete keys in batches to avoid blocking
+	deleted := 0
+	for i := 0; i < len(keysToDelete); i += ScanBatchSize {
+		end := i + ScanBatchSize
+		if end > len(keysToDelete) {
+			end = len(keysToDelete)
+		}
+
+		batch := keysToDelete[i:end]
+		result, delErr := c.rdb.Del(ctx, batch...).Result()
+		if delErr != nil {
+			c.logger.WithError(delErr).WithFields(logrus.Fields{
+				"batch_size": len(batch),
+				"user_id":    userID,
+			}).Error("Failed to delete user session batch")
+			return deleted, fmt.Errorf("failed to delete user session batch: %w", delErr)
+		}
+		deleted += int(result)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"sessions_cleared": deleted,
+		"user_id":          userID,
+	}).Info("User sessions cleared successfully")
+	return deleted, nil
 }

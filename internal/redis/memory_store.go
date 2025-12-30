@@ -6,6 +6,7 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -562,4 +563,249 @@ func (m *MemoryStore) DeletePasswordResetToken(_ context.Context, token string) 
 	delete(m.passwordResets, token)
 	m.logger.WithField("token", maskToken(token)).Debug("Password reset token deleted from memory")
 	return nil
+}
+
+// GetSessionStats retrieves statistics about sessions stored in the memory store.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//   - req: Request containing flags for optional TTL information
+//
+// Returns:
+//   - *models.SessionStats: Session statistics including counts, memory usage, and TTL info
+//   - error: Always nil for memory store
+func (m *MemoryStore) GetSessionStats(
+	_ context.Context,
+	req *models.SessionStatsRequest,
+) (*models.SessionStats, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	now := time.Now()
+	activeCount := 0
+	var ttls []time.Duration
+
+	// Count active sessions and collect TTLs
+	for _, session := range m.sessions {
+		if !session.isExpired() {
+			activeCount++
+			remaining := time.Until(session.ExpiresAt)
+			if remaining > 0 {
+				ttls = append(ttls, remaining)
+			}
+		}
+	}
+
+	stats := &models.SessionStats{
+		TotalSessions:  len(m.sessions),
+		ActiveSessions: activeCount,
+		MemoryUsage:    "in-memory (not tracked)",
+	}
+
+	// Build TTL info if any TTL-related flags are set
+	if req.IncludeTTLPolicy || req.IncludeTTLDistribution || req.IncludeTTLSummary {
+		stats.TTLInfo = m.buildMemoryStoreTTLInfo(activeCount, ttls, req)
+	}
+
+	m.logger.WithFields(logrus.Fields{
+		"total_sessions":  stats.TotalSessions,
+		"active_sessions": stats.ActiveSessions,
+		"now":             now,
+	}).Debug("Session stats retrieved from memory store")
+
+	return stats, nil
+}
+
+// buildMemoryStoreTTLInfo constructs TTL information for memory store.
+func (m *MemoryStore) buildMemoryStoreTTLInfo(
+	activeCount int,
+	ttls []time.Duration,
+	req *models.SessionStatsRequest,
+) *models.TTLInfo {
+	ttlInfo := &models.TTLInfo{}
+
+	if req.IncludeTTLPolicy {
+		ttlInfo.TTLPolicyUsage = buildTTLPolicyUsage(activeCount)
+	}
+
+	if req.IncludeTTLDistribution {
+		ttlInfo.TTLDistribution = buildTTLDistribution(ttls)
+	}
+
+	if req.IncludeTTLSummary {
+		ttlInfo.TTLSummary = buildTTLSummary(ttls)
+	}
+
+	return ttlInfo
+}
+
+// ClearAllSessions deletes all sessions from the memory store.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Always nil for memory store
+func (m *MemoryStore) ClearAllSessions(_ context.Context) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Count active (non-expired) sessions before clearing
+	count := 0
+	for _, session := range m.sessions {
+		if !session.isExpired() {
+			count++
+		}
+	}
+
+	// Clear all sessions
+	m.sessions = make(map[string]*expiringItem[*models.Session])
+
+	m.logger.WithField("sessions_cleared", count).Info("All sessions cleared from memory store")
+	return count, nil
+}
+
+// ClearUserSessions deletes all sessions for a specific user from the memory store.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//   - userID: The ID of the user whose sessions should be cleared
+//
+// Returns:
+//   - int: Number of sessions cleared
+//   - error: Always nil for memory store
+func (m *MemoryStore) ClearUserSessions(_ context.Context, userID string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Find and delete sessions belonging to the target user
+	var keysToDelete []string
+	for key, item := range m.sessions {
+		if !item.isExpired() && item.Data.UserID == userID {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+
+	// Delete the sessions
+	for _, key := range keysToDelete {
+		delete(m.sessions, key)
+	}
+
+	count := len(keysToDelete)
+	m.logger.WithFields(logrus.Fields{
+		"sessions_cleared": count,
+		"user_id":          userID,
+	}).Info("User sessions cleared from memory store")
+	return count, nil
+}
+
+// ClearAllCaches deletes all cached data from the memory store.
+// This is a nuclear option that clears sessions, tokens, clients, users, and all other cached data.
+//
+// Parameters:
+//   - ctx: Context for request cancellation (unused in memory store)
+//
+// Returns:
+//   - *models.ClearAllCachesResponse: Response containing counts of cleared items per cache type
+//   - error: Always nil for memory store
+func (m *MemoryStore) ClearAllCaches(_ context.Context) (*models.ClearAllCachesResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.logger.Warn("Clearing ALL caches from memory store - this is a destructive operation")
+
+	cachesCleared, totalCleared := m.clearAllCachesInternal()
+
+	m.logger.WithFields(logrus.Fields{
+		"caches_cleared":     cachesCleared,
+		"total_keys_cleared": totalCleared,
+	}).Warn("All caches cleared from memory store")
+
+	return &models.ClearAllCachesResponse{
+		Success:          true,
+		Message:          fmt.Sprintf("Successfully cleared %d keys from all caches", totalCleared),
+		CachesCleared:    cachesCleared,
+		TotalKeysCleared: totalCleared,
+	}, nil
+}
+
+// clearAllCachesInternal performs the actual cache clearing and returns counts.
+// Must be called with m.mu held.
+func (m *MemoryStore) clearAllCachesInternal() (map[string]int, int) {
+	cachesCleared := make(map[string]int)
+	totalCleared := 0
+
+	// Clear clients
+	cachesCleared["clients"] = len(m.clients)
+	totalCleared += len(m.clients)
+	m.clients = make(map[string]*models.Client)
+
+	// Clear expiring caches
+	cachesCleared["authorization_codes"], m.authCodes = m.clearExpiringAuthCodes()
+	totalCleared += cachesCleared["authorization_codes"]
+
+	cachesCleared["access_tokens"], m.accessTokens = m.clearExpiringAccessTokens()
+	totalCleared += cachesCleared["access_tokens"]
+
+	cachesCleared["refresh_tokens"], m.refreshTokens = m.clearExpiringRefreshTokens()
+	totalCleared += cachesCleared["refresh_tokens"]
+
+	cachesCleared["sessions"], m.sessions = m.clearExpiringSessions()
+	totalCleared += cachesCleared["sessions"]
+
+	cachesCleared["blacklist"], m.blacklist = m.clearExpiringBlacklist()
+	totalCleared += cachesCleared["blacklist"]
+
+	cachesCleared["password_resets"], m.passwordResets = m.clearExpiringPasswordResets()
+	totalCleared += cachesCleared["password_resets"]
+
+	// Clear users
+	cachesCleared["users"] = len(m.users)
+	totalCleared += len(m.users)
+	m.users = make(map[string]*models.UserWithPassword)
+	m.usersByEmail = make(map[string]*models.UserWithPassword)
+
+	return cachesCleared, totalCleared
+}
+
+func (m *MemoryStore) clearExpiringAuthCodes() (int, map[string]*expiringItem[*models.AuthorizationCode]) {
+	count := countNonExpired(m.authCodes)
+	return count, make(map[string]*expiringItem[*models.AuthorizationCode])
+}
+
+func (m *MemoryStore) clearExpiringAccessTokens() (int, map[string]*expiringItem[*models.AccessToken]) {
+	count := countNonExpired(m.accessTokens)
+	return count, make(map[string]*expiringItem[*models.AccessToken])
+}
+
+func (m *MemoryStore) clearExpiringRefreshTokens() (int, map[string]*expiringItem[*models.RefreshToken]) {
+	count := countNonExpired(m.refreshTokens)
+	return count, make(map[string]*expiringItem[*models.RefreshToken])
+}
+
+func (m *MemoryStore) clearExpiringSessions() (int, map[string]*expiringItem[*models.Session]) {
+	count := countNonExpired(m.sessions)
+	return count, make(map[string]*expiringItem[*models.Session])
+}
+
+func (m *MemoryStore) clearExpiringBlacklist() (int, map[string]*expiringItem[bool]) {
+	count := countNonExpired(m.blacklist)
+	return count, make(map[string]*expiringItem[bool])
+}
+
+func (m *MemoryStore) clearExpiringPasswordResets() (int, map[string]*expiringItem[*models.PasswordResetToken]) {
+	count := countNonExpired(m.passwordResets)
+	return count, make(map[string]*expiringItem[*models.PasswordResetToken])
+}
+
+// countNonExpired counts non-expired items in an expiring item map.
+func countNonExpired[T any](items map[string]*expiringItem[T]) int {
+	count := 0
+	for _, item := range items {
+		if !item.isExpired() {
+			count++
+		}
+	}
+	return count
 }

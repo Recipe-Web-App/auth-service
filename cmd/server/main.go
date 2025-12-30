@@ -265,6 +265,13 @@ func setupServer(
 	apiV1Router.HandleFunc("/user-management/auth/reset-password/confirm", userAuthHandler.ConfirmPasswordReset).
 		Methods("POST")
 
+	// Admin routes with admin auth middleware
+	adminService := auth.NewAdminService(cfg, store, log)
+	adminHandler := handlers.NewAdminHandler(adminService, cfg, log)
+	adminRouter := apiV1Router.PathPrefix("/admin").Subrouter()
+	adminRouter.Use(middlewareStack.AdminAuth(jwtService))
+	adminHandler.RegisterRoutes(adminRouter)
+
 	// Apply middleware to the entire router
 	finalHandler := middlewareStack.Chain(
 		router,

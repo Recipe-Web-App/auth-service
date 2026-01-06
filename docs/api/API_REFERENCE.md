@@ -6,6 +6,9 @@ The OAuth2 Authentication Service provides RESTful APIs for authentication,
 authorization, and token management. All endpoints follow OAuth2 and OpenID
 Connect specifications.
 
+> **Note**: The [OpenAPI specification](openapi.yaml) is the authoritative source for API documentation.
+> This reference provides a quick overview and examples for common use cases.
+
 ## Base URL
 
 - **Development**: `http://localhost:8080/api/v1/auth`
@@ -267,6 +270,244 @@ Authorization: Bearer <access_token>
 
 - `200 OK` - User information retrieved
 - `401 Unauthorized` - Invalid or expired token
+
+## User Authentication Endpoints
+
+### Register User
+
+Register a new user account.
+
+**Request:**
+
+```http
+POST /api/v1/auth/user-management/auth/register
+Content-Type: application/json
+
+{
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "securePassword123",  // pragma: allowlist secret
+  "full_name": "John Doe"
+}
+```
+
+**Response:**
+
+```json
+{
+  "user_id": "user-uuid-123",
+  "username": "johndoe",
+  "email": "john@example.com",
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "refresh_token": "8xLOxBtZp8"
+}
+```
+
+### Login User
+
+Authenticate a user and receive tokens.
+
+**Request:**
+
+```http
+POST /api/v1/auth/user-management/auth/login
+Content-Type: application/json
+
+{
+  "username": "johndoe",
+  "password": "securePassword123"  // pragma: allowlist secret
+}
+```
+
+**Response:**
+
+```json
+{
+  "user_id": "user-uuid-123",
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "refresh_token": "8xLOxBtZp8",
+  "expires_in": 900
+}
+```
+
+### Logout User
+
+Invalidate user session and tokens.
+
+**Request:**
+
+```http
+POST /api/v1/auth/user-management/auth/logout
+Authorization: Bearer <access_token>
+```
+
+### Refresh User Token
+
+Refresh an expired access token.
+
+**Request:**
+
+```http
+POST /api/v1/auth/user-management/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "8xLOxBtZp8"
+}
+```
+
+### Request Password Reset
+
+Initiate password reset flow.
+
+**Request:**
+
+```http
+POST /api/v1/auth/user-management/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "john@example.com"
+}
+```
+
+### Confirm Password Reset
+
+Complete password reset with token.
+
+**Request:**
+
+```http
+POST /api/v1/auth/user-management/auth/reset-password/confirm
+Content-Type: application/json
+
+{
+  "token": "reset-token-from-email",
+  "new_password": "newSecurePassword123"  // pragma: allowlist secret
+}
+```
+
+## Client Management Endpoints
+
+### Register OAuth2 Client
+
+Register a new OAuth2 client application.
+
+**Request:**
+
+```http
+POST /api/v1/auth/oauth/clients
+Content-Type: application/json
+Authorization: Bearer <admin_access_token>
+
+{
+  "name": "My Application",
+  "redirect_uris": ["https://app.example.com/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "scopes": ["read", "write", "profile"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "client_id": "generated-client-id",
+  "client_secret": "generated-client-secret", // pragma: allowlist secret
+  "name": "My Application",
+  "redirect_uris": ["https://app.example.com/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "scopes": ["read", "write", "profile"]
+}
+```
+
+### Get Client Details
+
+Retrieve information about a registered client.
+
+**Request:**
+
+```http
+GET /api/v1/auth/oauth/clients/{client_id}
+Authorization: Bearer <access_token>
+```
+
+### Rotate Client Secret
+
+Generate a new client secret (invalidates the old one).
+
+**Request:**
+
+```http
+PUT /api/v1/auth/oauth/clients/{client_id}/secret
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+
+```json
+{
+  "client_id": "existing-client-id",
+  "client_secret": "new-generated-secret" // pragma: allowlist secret
+}
+```
+
+## Admin Endpoints
+
+These endpoints require admin authentication.
+
+### Get Session Statistics
+
+Retrieve statistics about active sessions.
+
+**Request:**
+
+```http
+GET /api/v1/auth/admin/cache/sessions/stats
+Authorization: Bearer <admin_access_token>
+```
+
+**Response:**
+
+```json
+{
+  "active_sessions": 150,
+  "total_users": 75
+}
+```
+
+### Clear All Sessions
+
+Invalidate all active user sessions.
+
+**Request:**
+
+```http
+DELETE /api/v1/auth/admin/cache/sessions
+Authorization: Bearer <admin_access_token>
+```
+
+### Clear All Caches
+
+Clear all cached data (sessions, tokens, client cache).
+
+**Request:**
+
+```http
+POST /api/v1/auth/admin/cache/clear
+Authorization: Bearer <admin_access_token>
+```
+
+### Force User Logout
+
+Force logout a specific user by invalidating all their sessions.
+
+**Request:**
+
+```http
+POST /api/v1/auth/admin/user-management/{userId}/force-logout
+Authorization: Bearer <admin_access_token>
+```
 
 ## Monitoring Endpoints
 

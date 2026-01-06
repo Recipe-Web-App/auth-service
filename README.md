@@ -69,7 +69,7 @@ PKCE and Client Credentials Flow for secure microservices authentication.
 
 ### Prerequisites
 
-- Go 1.23+
+- Go 1.24+
 - Docker & Docker Compose
 - Redis (or use Docker)
 - PostgreSQL (optional - for persistent user storage)
@@ -415,13 +415,13 @@ See [Deployment Guide](docs/DEPLOYMENT.md) and [k8s/README.md](k8s/README.md) fo
 
 ## 📚 Documentation
 
-- **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
+- **[API Reference](docs/api/API_REFERENCE.md)** - Complete API documentation
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and components
 - **[Contributing Guide](.github/CONTRIBUTING.md)** - Development workflow and contributing guidelines
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment instructions
 - **[Kubernetes Deployment](k8s/README.md)** - Kubernetes manifests and configuration
 - **[Management Scripts](scripts/containerManagement/README.md)** - Container management automation
-- **[OpenAPI Specification](api/openapi.yaml)** - Machine-readable API spec
+- **[OpenAPI Specification](docs/api/openapi.yaml)** - Machine-readable API spec
 
 ## 🔒 Security Features
 
@@ -463,8 +463,8 @@ The service exposes Prometheus metrics:
 ### Health Checks
 
 - **Overall Health**: `/health` - Returns healthy/degraded/unhealthy status
-  - **healthy**: Both PostgreSQL and Redis available
-  - **degraded**: Redis available, PostgreSQL unavailable (200 status for k8s deployment)
+  - **healthy**: Redis, PostgreSQL, and MySQL all available
+  - **degraded**: Redis available, but PostgreSQL or MySQL unavailable (200 status for k8s deployment)
   - **unhealthy**: Redis unavailable (503 status)
 - **Readiness**: `/health/ready` - Ready to serve traffic (Redis-based)
 
@@ -488,20 +488,19 @@ The service exposes Prometheus metrics:
                     │  ├─────────────────┤    │
                     │  │ Infrastructure  │    │
                     │  └─────────────────┘    │
-                    └────────┬─────┬──────────┘
-                             │     │
-               ┌─────────────▼─┐   │
-               │  PostgreSQL   │   │
-               │(Persistent    │   │
-               │ User Data)    │   │
-               └───────────────┘   │
-                                   │
-                        ┌──────────▼──────────┐
-                        │       Redis         │
-                        │ (Sessions, Tokens,  │
-                        │  Rate Limiting,     │
-                        │     Caching)        │
-                        └─────────────────────┘
+                    └───┬─────┬─────┬─────────┘
+                        │     │     │
+          ┌─────────────▼─┐   │   ┌─▼─────────────┐
+          │  PostgreSQL   │   │   │    MySQL      │
+          │ (User Data)   │   │   │(OAuth2 Client │
+          └───────────────┘   │   │  Credentials) │
+                              │   └───────────────┘
+                   ┌──────────▼──────────┐
+                   │       Redis         │
+                   │ (Sessions, Tokens,  │
+                   │  Rate Limiting,     │
+                   │  Client Caching)    │
+                   └─────────────────────┘
 ```
 
 ## 🤝 Contributing

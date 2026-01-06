@@ -133,10 +133,10 @@ make build-client-manager
 
 ```bash
 # Register all backend services and save credentials
-./scripts/register-clients.sh
+./scripts/clientManagement/register-clients.sh
 
 # Register with custom auth service URL
-./scripts/register-clients.sh http://auth-service:8080
+./scripts/clientManagement/register-clients.sh http://auth-service:8080
 ```
 
 This script:

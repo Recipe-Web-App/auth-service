@@ -92,7 +92,7 @@ A: Check [`.env.example`](../.env.example) for all configuration options
 A: Yes, the service gracefully degrades to Redis-only mode. See [CLAUDE.md](../CLAUDE.md#architecture-overview)
 
 **Q: How do I enable TLS/HTTPS?**
-A: Set `TLS_CERT_PATH` and `TLS_KEY_PATH` environment variables
+A: Configure `server.tls_cert_path` and `server.tls_key_path` in your YAML config file (e.g., `configs/prod.yaml`)
 
 ### OAuth2 Flows
 

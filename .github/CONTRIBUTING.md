@@ -45,7 +45,7 @@ unacceptable behavior through the project's issue tracker.
 
 ### Prerequisites
 
-- Go 1.23 or higher
+- Go 1.24 or higher
 - Docker and Docker Compose
 - PostgreSQL 14+ (for local development)
 - Redis 7+ (for local development)

@@ -12,23 +12,63 @@ that provides secure authentication and authorization capabilities for distribut
 │                    OAuth2 Auth Service                      │
 ├─────────────────────────────────────────────────────────────┤
 │  HTTP Layer                                                 │
-│  ├── Handlers (OAuth2, Health, Metrics)                     │
+│  ├── Handlers (OAuth2, User Auth, Admin, Health, Metrics)   │
 │  ├── Middleware (Rate Limiting, CORS, Logging, Recovery)    │
 │  └── Router (Gorilla Mux)                                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Business Logic                                             │
 │  ├── OAuth2 Service (Authorization & Token Flows)           │
-│  ├── Client Management                                      │
+│  ├── User Service (Registration, Login, Password Reset)     │
+│  ├── Client Management (CRUD, Secret Rotation)              │
 │  ├── Token Operations (Introspect, Revoke, UserInfo)        │
 │  └── JWT Token Service                                      │
 ├─────────────────────────────────────────────────────────────┤
+│  Data Layer                                                 │
+│  ├── PostgreSQL (Persistent User Data)                      │
+│  ├── MySQL (OAuth2 Client Credentials)                      │
+│  ├── Redis (Sessions, Tokens, Rate Limiting, Caching)       │
+│  └── Hybrid Repository Pattern (Database + Cache)           │
+├─────────────────────────────────────────────────────────────┤
 │  Infrastructure                                             │
-│  ├── Redis Client (Session & Rate Limiting Storage)         │
-│  ├── Configuration Management                               │
+│  ├── Configuration Management (YAML + Environment)          │
+│  ├── Health Monitoring (Graceful Degradation)               │
 │  ├── Structured Logging                                     │
 │  └── Prometheus Metrics                                     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Storage Architecture
+
+The service uses a hybrid storage architecture with graceful degradation:
+
+```text
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   PostgreSQL    │     │     MySQL       │     │     Redis       │
+│                 │     │                 │     │                 │
+│  • User data    │     │ • OAuth2 clients│     │ • Auth codes    │
+│  • Profiles     │     │ • Client secrets│     │ • Access tokens │
+│  • Passwords    │     │   (bcrypt hash) │     │ • Refresh tokens│
+│                 │     │ • Audit trail   │     │ • Sessions      │
+│  [Optional]     │     │  [Optional]     │     │ • Rate limits   │
+└─────────────────┘     └─────────────────┘     │ • Client cache  │
+                                                │                 │
+                                                │ [Required -     │
+                                                │  In-memory      │
+                                                │  fallback]      │
+                                                └─────────────────┘
+```
+
+**Graceful Degradation:**
+
+- **Healthy**: All three storage systems operational
+- **Degraded**: Redis available, PostgreSQL or MySQL unavailable (200 status)
+- **Unhealthy**: Redis unavailable (503 status)
+
+**Client Repository Pattern:**
+
+- MySQL as primary source of truth for OAuth2 clients
+- Redis cache layer for performance (cache-aside pattern)
+- Automatic fallback to Redis-only mode if MySQL unavailable
 
 ### Data Flow
 
@@ -64,8 +104,10 @@ Access Token → Service
    - Client authentication
 
 3. **Data Layer**
-   - Redis encryption in transit (TLS)
-   - Token blacklisting
+   - PostgreSQL and MySQL encryption in transit (optional TLS)
+   - Redis encryption in transit (optional TLS)
+   - Client secrets hashed with bcrypt (cost factor 12)
+   - Token blacklisting for revoked tokens
    - Secure session management
 
 ### Token Security
@@ -85,9 +127,10 @@ Access Token → Service
 
 ### Performance Optimizations
 
+- **Database Connection Pooling**: PostgreSQL (pgx) and MySQL connection pools
 - **Redis Pipelining**: Batch operations where possible
+- **Client Caching**: Cache-aside pattern for OAuth2 clients
 - **JWT Claims Caching**: Minimize token validation overhead
-- **Connection Pooling**: Efficient Redis connection management
 - **Prometheus Metrics**: Real-time performance monitoring
 
 ## Reliability Features

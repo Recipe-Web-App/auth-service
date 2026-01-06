@@ -608,29 +608,118 @@ Response:
 
 ## Configuration
 
-### Environment Variables Reference
+The auth service uses a **hybrid configuration approach**:
 
-#### Server Configuration
+- **Environment variables** (`.env.local`, `.env.prod`) - Connection data and secrets only
+- **YAML configuration files** (`configs/*.yaml`) - Operational settings
+
+### Environment Variables (Connection Data & Secrets)
 
 ```env
-SERVER_PORT=8080                    # HTTP port (1-65535)
-SERVER_HOST=0.0.0.0                 # Bind address
-SERVER_READ_TIMEOUT=15s             # Request read timeout
-SERVER_WRITE_TIMEOUT=15s            # Response write timeout
-SERVER_IDLE_TIMEOUT=60s             # Keep-alive timeout
-SERVER_SHUTDOWN_TIMEOUT=30s         # Graceful shutdown timeout
-SERVER_TLS_CERT=/path/to/cert.pem   # TLS certificate path
-SERVER_TLS_KEY=/path/to/key.pem     # TLS private key path
+# Environment - determines which YAML config to load (LOCAL, NONPROD, PROD)
+ENVIRONMENT=LOCAL
+
+# Server connection
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+
+# JWT Secret (REQUIRED - minimum 32 characters)
+JWT_SECRET=your-jwt-secret-minimum-32-characters-long  # pragma: allowlist secret
+
+# Redis connection
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# PostgreSQL connection (optional - for user data)
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=recipe_database
+POSTGRES_SCHEMA=recipe_manager
+POSTGRES_USER=auth_user
+POSTGRES_PASSWORD=auth_password
+
+# MySQL connection (optional - for OAuth2 client storage)
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DB=client_manager
+MYSQL_CLIENT_DB_USER=client_user
+MYSQL_CLIENT_DB_PASSWORD=client_password
+
+# Auth service client credentials
+AUTH_SERVICE_CLIENT_ID=auth-service-client-id
+AUTH_SERVICE_CLIENT_SECRET=auth-service-client-secret
 ```
 
-#### JWT Configuration
+### YAML Configuration (Operational Settings)
 
-```env
-JWT_SECRET=your-secret-key          # REQUIRED: min 32 chars  # pragma: allowlist secret
-JWT_ACCESS_TOKEN_EXPIRY=15m         # Access token lifetime
-JWT_REFRESH_TOKEN_EXPIRY=168h       # Refresh token lifetime (7 days)
-JWT_ISSUER=auth-service             # JWT issuer claim
-JWT_ALGORITHM=HS256                 # Signing algorithm
+Operational settings are configured in `configs/*.yaml` files:
+
+- `configs/defaults.yaml` - Base configuration for all environments
+- `configs/local.yaml` - Local development overrides
+- `configs/nonprod.yaml` - Non-production overrides
+- `configs/prod.yaml` - Production overrides
+
+Example `configs/defaults.yaml`:
+
+```yaml
+server:
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 30s
+
+jwt:
+  access_token_expiry: 15m
+  refresh_token_expiry: 168h
+  issuer: auth-service
+  algorithm: HS256
+
+oauth2:
+  authorization_code_expiry: 10m
+  pkce_required: true
+  supported_scopes:
+    - openid
+    - profile
+    - email
+    - read
+    - write
+
+security:
+  rate_limit:
+    requests_per_second: 100
+    burst: 200
+  cors:
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+
+postgres:
+  max_connections: 25
+  min_connections: 5
+  max_conn_lifetime: 1h
+  health_check_period: 30s
+
+mysql:
+  max_connections: 25
+  max_idle_connections: 5
+  conn_max_lifetime: 1h
+
+redis:
+  pool_size: 10
+  min_idle_conns: 5
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+
+logging:
+  level: info
+  format: json
 ```
 
 **Supported JWT algorithms:**
@@ -638,79 +727,6 @@ JWT_ALGORITHM=HS256                 # Signing algorithm
 - HS256, HS384, HS512 (HMAC)
 - RS256, RS384, RS512 (RSA)
 - ES256, ES384, ES512 (ECDSA)
-
-#### OAuth2 Configuration
-
-```env
-OAUTH2_AUTHORIZATION_CODE_EXPIRY=10m      # Auth code lifetime
-OAUTH2_CLIENT_CREDENTIALS_EXPIRY=1h       # Client credentials token lifetime
-OAUTH2_PKCE_REQUIRED=true                 # Enforce PKCE for all clients
-OAUTH2_DEFAULT_SCOPES=openid,profile      # Default scopes when none specified
-OAUTH2_SUPPORTED_SCOPES=openid,profile,email,read,write,media:read,media:write,user:read,user:write,admin,notification:admin,notification:user
-OAUTH2_SUPPORTED_GRANT_TYPES=authorization_code,client_credentials,refresh_token
-OAUTH2_SUPPORTED_RESPONSE_TYPES=code
-```
-
-#### Security Configuration
-
-```env
-SECURITY_RATE_LIMIT_RPS=100         # Requests per second limit
-SECURITY_RATE_LIMIT_BURST=200       # Burst capacity
-SECURITY_RATE_LIMIT_WINDOW=1m       # Rate limit window
-SECURITY_ALLOWED_ORIGINS=*          # CORS allowed origins
-SECURITY_ALLOWED_METHODS=GET,POST,PUT,DELETE,OPTIONS
-SECURITY_ALLOWED_HEADERS=*          # CORS allowed headers
-SECURITY_ALLOW_CREDENTIALS=true     # CORS credentials support
-SECURITY_MAX_AGE=86400              # CORS preflight cache time
-SECURITY_SECURE_COOKIES=true        # Mark cookies as secure
-SECURITY_SAME_SITE_COOKIES=strict   # SameSite cookie attribute
-```
-
-##### PostgreSQL Configuration
-
-```env
-POSTGRES_HOST=localhost             # PostgreSQL server hostname
-POSTGRES_PORT=5432                  # PostgreSQL server port
-POSTGRES_DB=recipe_manager          # PostgreSQL database name
-POSTGRES_SCHEMA=recipe_manager      # PostgreSQL schema name
-POSTGRES_USER=auth_user             # Database username
-POSTGRES_PASSWORD=auth_password     # Database password
-POSTGRES_SSL_MODE=require           # SSL connection mode
-POSTGRES_MAX_CONN=25                # Maximum connections in pool
-POSTGRES_MIN_CONN=5                 # Minimum connections in pool
-POSTGRES_MAX_CONN_LIFETIME=1h       # Maximum connection lifetime
-POSTGRES_MAX_CONN_IDLE_TIME=30m     # Maximum idle time for connections
-POSTGRES_HEALTH_CHECK_PERIOD=30s    # Database health check interval
-POSTGRES_CONNECT_TIMEOUT=10s        # Connection timeout
-```
-
-#### Redis Configuration
-
-```env
-REDIS_URL=redis://localhost:6379    # Redis connection URL
-REDIS_PASSWORD=                     # Redis password (optional)
-REDIS_DB=0                          # Redis database number
-REDIS_MAX_RETRIES=3                 # Connection retry attempts
-REDIS_POOL_SIZE=10                  # Connection pool size
-REDIS_MIN_IDLE_CONN=5               # Minimum idle connections
-REDIS_DIAL_TIMEOUT=5s               # Connection timeout
-REDIS_READ_TIMEOUT=3s               # Read operation timeout
-REDIS_WRITE_TIMEOUT=3s              # Write operation timeout
-REDIS_POOL_TIMEOUT=4s               # Pool wait timeout
-REDIS_IDLE_TIMEOUT=300s             # Idle connection timeout
-```
-
-#### Logging Configuration
-
-```env
-LOGGING_LEVEL=info                  # Log level: debug, info, warn, error
-LOGGING_FORMAT=json                 # Log format: json, text
-LOGGING_OUTPUT=stdout               # Output: stdout, stderr, file path
-LOGGING_CONSOLE_FORMAT=text         # Console output format
-LOGGING_FILE_FORMAT=json            # File output format
-LOGGING_FILE_PATH=/var/log/auth.log # Log file path (for dual output)
-LOGGING_ENABLE_DUAL_OUTPUT=false    # Enable both console and file output
-```
 
 ### Production Deployment Considerations
 

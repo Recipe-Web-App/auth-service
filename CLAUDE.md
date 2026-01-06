@@ -162,7 +162,7 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 
 ### Development Notes
 
-- Uses Go 1.23+ with modules
+- Uses Go 1.24+ with modules
 - Graceful shutdown support with proper database connection cleanup
 - Health checks with degraded status support:
   - **healthy**: Redis + PostgreSQL + MySQL all available

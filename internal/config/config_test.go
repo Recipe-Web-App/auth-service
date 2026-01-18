@@ -25,12 +25,14 @@ func TestLoad(t *testing.T) {
 			envVars: map[string]string{
 				"JWT_SECRET":  jwtSecret,
 				"SERVER_PORT": "9090",
-				"REDIS_URL":   "redis://localhost:6380",
+				"REDIS_HOST":  "redis.example.com",
+				"REDIS_PORT":  "6380",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, cfg *config.Config) {
 				assert.Equal(t, 9090, cfg.Server.Port)
-				assert.Equal(t, "redis://localhost:6380", cfg.Redis.URL)
+				assert.Equal(t, "redis.example.com", cfg.Redis.Host)
+				assert.Equal(t, 6380, cfg.Redis.Port)
 				assert.Equal(t, jwtSecret, cfg.JWT.Secret)
 			},
 		},
@@ -264,7 +266,7 @@ func TestConfigIsTLSEnabled(t *testing.T) {
 func clearEnv(_ *testing.T) {
 	envVars := []string{
 		"SERVER_PORT", "SERVER_HOST", "SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT",
-		"REDIS_URL", "REDIS_PASSWORD", "REDIS_DB",
+		"REDIS_HOST", "REDIS_PORT", "REDIS_USER", "REDIS_PASSWORD", "REDIS_DB",
 		"JWT_SECRET", "JWT_ACCESS_TOKEN_EXPIRY", "JWT_REFRESH_TOKEN_EXPIRY",
 		"JWT_ISSUER", "JWT_ALGORITHM",
 		"OAUTH2_AUTHORIZATION_CODE_EXPIRY", "OAUTH2_PKCE_REQUIRED",

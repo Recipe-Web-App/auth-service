@@ -35,13 +35,17 @@ func TestRedisIntegration(t *testing.T) {
 		}
 	}()
 
-	// Get connection string
-	connectionString, err := redisContainer.ConnectionString(ctx)
+	// Get host and port from container
+	host, err := redisContainer.Host(ctx)
+	require.NoError(t, err)
+
+	mappedPort, err := redisContainer.MappedPort(ctx, "6379/tcp")
 	require.NoError(t, err)
 
 	// Create Redis client
 	cfg := &config.RedisConfig{
-		URL:          connectionString,
+		Host:         host,
+		Port:         mappedPort.Int(),
 		MaxRetries:   3,
 		PoolSize:     10,
 		MinIdleConn:  5,

@@ -88,28 +88,32 @@ type ServerConfig struct {
 
 // RedisConfig contains Redis connection configuration and pool settings.
 type RedisConfig struct {
-	// URL is the Redis connection URL.
-	URL string `envconfig:"URL"      default:"redis://localhost:6379" mapstructure:"-"`
+	// Host is the Redis server hostname.
+	Host string `envconfig:"HOST"     default:"localhost" mapstructure:"-"`
+	// Port is the Redis server port.
+	Port int `envconfig:"PORT"     default:"6379"      mapstructure:"-"`
+	// User is the Redis username for ACL authentication (Redis 6+).
+	User string `envconfig:"USER"                         mapstructure:"-"`
 	// Password is the Redis authentication password.
-	Password string `envconfig:"PASSWORD"                                  mapstructure:"-"`
+	Password string `envconfig:"PASSWORD"                     mapstructure:"-"`
 	// DB is the Redis database number to use.
-	DB int `envconfig:"DB"       default:"0"                      mapstructure:"-"`
+	DB int `envconfig:"DB"       default:"0"         mapstructure:"-"`
 	// MaxRetries is the maximum number of retry attempts for failed operations (from YAML).
-	MaxRetries int `                                                      mapstructure:"max_retries"`
+	MaxRetries int `                                         mapstructure:"max_retries"`
 	// PoolSize is the maximum number of socket connections (from YAML).
-	PoolSize int `                                                      mapstructure:"pool_size"`
+	PoolSize int `                                         mapstructure:"pool_size"`
 	// MinIdleConn is the minimum number of idle connections (from YAML).
-	MinIdleConn int `                                                      mapstructure:"min_idle_conn"`
+	MinIdleConn int `                                         mapstructure:"min_idle_conn"`
 	// DialTimeout is the timeout for establishing new connections (from YAML).
-	DialTimeout time.Duration `                                                      mapstructure:"dial_timeout"`
+	DialTimeout time.Duration `                                         mapstructure:"dial_timeout"`
 	// ReadTimeout is the timeout for socket reads (from YAML).
-	ReadTimeout time.Duration `                                                      mapstructure:"read_timeout"`
+	ReadTimeout time.Duration `                                         mapstructure:"read_timeout"`
 	// WriteTimeout is the timeout for socket writes (from YAML).
-	WriteTimeout time.Duration `                                                      mapstructure:"write_timeout"`
+	WriteTimeout time.Duration `                                         mapstructure:"write_timeout"`
 	// PoolTimeout is the amount of time client waits for connection (from YAML).
-	PoolTimeout time.Duration `                                                      mapstructure:"pool_timeout"`
+	PoolTimeout time.Duration `                                         mapstructure:"pool_timeout"`
 	// IdleTimeout is the amount of time after which client closes idle connections (from YAML).
-	IdleTimeout time.Duration `                                                      mapstructure:"idle_timeout"`
+	IdleTimeout time.Duration `                                         mapstructure:"idle_timeout"`
 }
 
 // DatabaseConfig contains PostgreSQL database connection configuration and pool settings.

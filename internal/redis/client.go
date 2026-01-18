@@ -233,7 +233,9 @@ type Store interface {
 // It establishes a connection pool, validates connectivity, and returns a ready-to-use client.
 //
 // Configuration:
-//   - URL: Redis connection string (redis://host:port/db)
+//   - Host: Redis server hostname
+//   - Port: Redis server port
+//   - User: Optional username for ACL authentication (Redis 6+)
 //   - Password: Optional authentication password
 //   - DB: Database number to select
 //   - Connection pooling settings (MaxRetries, PoolSize, MinIdleConn)
@@ -246,26 +248,20 @@ type Store interface {
 //   - *Client: Configured Redis client ready for use
 //   - error: Connection or configuration error
 func NewClient(cfg *config.RedisConfig, logger *logrus.Logger) (*Client, error) {
-	opts, err := redis.ParseURL(cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
+	opts := &redis.Options{
+		Addr:            fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Username:        cfg.User,
+		Password:        cfg.Password, // pragma: allowlist secret
+		DB:              cfg.DB,
+		MaxRetries:      cfg.MaxRetries,
+		PoolSize:        cfg.PoolSize,
+		MinIdleConns:    cfg.MinIdleConn,
+		DialTimeout:     cfg.DialTimeout,
+		ReadTimeout:     cfg.ReadTimeout,
+		WriteTimeout:    cfg.WriteTimeout,
+		PoolTimeout:     cfg.PoolTimeout,
+		ConnMaxIdleTime: cfg.IdleTimeout,
 	}
-
-	if cfg.Password != "" {
-		opts.Password = cfg.Password // pragma: allowlist secret
-	}
-	if cfg.DB != 0 {
-		opts.DB = cfg.DB
-	}
-
-	opts.MaxRetries = cfg.MaxRetries
-	opts.PoolSize = cfg.PoolSize
-	opts.MinIdleConns = cfg.MinIdleConn
-	opts.DialTimeout = cfg.DialTimeout
-	opts.ReadTimeout = cfg.ReadTimeout
-	opts.WriteTimeout = cfg.WriteTimeout
-	opts.PoolTimeout = cfg.PoolTimeout
-	opts.ConnMaxIdleTime = cfg.IdleTimeout
 
 	rdb := redis.NewClient(opts)
 

@@ -17,7 +17,9 @@ data:
   SERVER_PORT: "${SERVER_PORT}"
 
   # Redis Configuration (Non-Sensitive)
-  REDIS_URL: "${REDIS_URL}"
+  REDIS_HOST: "${REDIS_HOST}"
+  REDIS_PORT: "${REDIS_PORT}"
+  REDIS_USER: "${REDIS_USER}"
   REDIS_DB: "${REDIS_DB}"
 
   # PostgreSQL Database Configuration (Non-Sensitive)

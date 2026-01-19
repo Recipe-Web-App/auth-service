@@ -1,0 +1,66 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":rebaseStalePRs",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "timezone": "America/New_York",
+  "schedule": ["before 10am on monday"],
+  "assignees": ["jsamuelsen11"],
+  "prConcurrentLimit": 100,
+  "rebaseWhen": "auto",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Go patch updates - grouped, auto-merge",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go-patch-updates",
+      "labels": ["dependencies", "go"],
+      "commitMessagePrefix": "deps(deps):",
+      "automerge": true
+    },
+    {
+      "description": "Go minor updates - grouped, require approval",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor"],
+      "groupName": "go-minor-updates",
+      "labels": ["dependencies", "go"],
+      "commitMessagePrefix": "deps(deps):",
+      "automerge": false
+    },
+    {
+      "description": "Go minor indirect dependencies - auto-merge",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor"],
+      "matchDepTypes": ["indirect"],
+      "automerge": true
+    },
+    {
+      "description": "Go major updates - individual PRs, manual review required",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "go", "major"],
+      "commitMessagePrefix": "deps(deps):",
+      "automerge": false
+    },
+    {
+      "description": "GitHub Actions - all grouped, auto-merge",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "labels": ["dependencies", "github-actions"],
+      "commitMessagePrefix": "ci(ci):",
+      "automerge": true
+    },
+    {
+      "description": "Docker and Docker Compose updates",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "labels": ["dependencies", "docker"],
+      "commitMessagePrefix": "docker(docker):"
+    }
+  ],
+  "postUpdateOptions": ["gomodTidy"]
+}

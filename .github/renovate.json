@@ -60,6 +60,23 @@
       "matchManagers": ["dockerfile", "docker-compose"],
       "labels": ["dependencies", "docker"],
       "commitMessagePrefix": "docker(docker):"
+    },
+    {
+      "description": "Pre-commit hooks - grouped, auto-merge for minor/patch",
+      "matchManagers": ["pre-commit"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "pre-commit-hooks",
+      "labels": ["dependencies", "pre-commit"],
+      "commitMessagePrefix": "chore(pre-commit):",
+      "automerge": true
+    },
+    {
+      "description": "Pre-commit hooks - major updates require review",
+      "matchManagers": ["pre-commit"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "pre-commit", "major"],
+      "commitMessagePrefix": "chore(pre-commit):",
+      "automerge": false
     }
   ],
   "postUpdateOptions": ["gomodTidy"]

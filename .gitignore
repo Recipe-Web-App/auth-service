@@ -63,3 +63,14 @@ gosec-report.json
 
 # Pre-Commit cache
 node_modules/
+
+# Serena
+.serena/
+
+# Beads
+.beads/*
+!.beads/issues.jsonl
+!.beads/.gitignore
+
+# bv (beads viewer) local config and caches
+.bv/

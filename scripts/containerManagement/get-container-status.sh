@@ -36,10 +36,6 @@ echo -e "${YELLOW}🌐 Service Status:${NC}"
 kubectl get svc -n "$NAMESPACE" || echo "No services found"
 print_separator "-"
 
-echo -e "${YELLOW}🚪 Ingress Status:${NC}"
-kubectl get ingress -n "$NAMESPACE" || echo "No ingress found"
-print_separator "-"
-
 echo -e "${YELLOW}📈 HPA Status:${NC}"
 kubectl get hpa -n "$NAMESPACE" || echo "No HPA found"
 print_separator "-"

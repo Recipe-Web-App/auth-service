@@ -82,9 +82,6 @@ envsubst < k8s/configmap-template.yaml | kubectl apply -f -
 kubectl delete secret auth-service-secrets -n "$NAMESPACE" --ignore-not-found
 envsubst < k8s/secret-template.yaml | kubectl apply -f -
 
-echo -e "${YELLOW}📥 Applying Gateway HTTPRoute...${NC}"
-kubectl apply -f k8s/gateway-route.yaml
-
 echo -e "${YELLOW}🔁 Performing rolling restart...${NC}"
 kubectl rollout restart deployment/auth-service -n "$NAMESPACE"
 

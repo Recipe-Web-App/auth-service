@@ -204,13 +204,6 @@ print_separator "-"
 kubectl apply -f "${CONFIG_DIR}/horizontalpodautoscaler.yaml"
 
 print_separator "="
-echo -e "${CYAN}📥 Applying Gateway HTTPRoute...${NC}"
-print_separator "-"
-
-kubectl apply -f "${CONFIG_DIR}/gateway-route.yaml"
-print_status "ok" "Gateway HTTPRoute applied."
-
-print_separator "="
 echo -e "${CYAN}⏳ Waiting for Auth Service pod to be ready...${NC}"
 print_separator "-"
 

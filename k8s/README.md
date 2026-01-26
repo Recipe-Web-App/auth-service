@@ -9,7 +9,6 @@ The deployment includes:
 
 - **Deployment**: Application pods with security hardening, resource limits, and health checks
 - **Service**: ClusterIP service for internal communication
-- **Ingress**: NGINX ingress with SSL termination and rate limiting
 - **ConfigMap**: Non-sensitive configuration data
 - **Secret**: Sensitive configuration data (JWT secrets, Redis passwords)
 - **NetworkPolicy**: Network security policies
@@ -52,7 +51,7 @@ The deployment includes:
 ## Prerequisites
 
 1. Kubernetes cluster (1.21+)
-2. NGINX Ingress Controller
+2. Kong Gateway (for routing)
 3. cert-manager (for SSL certificates)
 4. Prometheus Operator (for monitoring)
 5. Metrics Server (for HPA)
@@ -169,10 +168,7 @@ kubectl apply -f k8s/networkpolicy.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 
-# 5. Configure ingress
-kubectl apply -f k8s/ingress.yaml
-
-# 6. Add monitoring and scaling
+# 5. Add monitoring and scaling
 kubectl apply -f k8s/servicemonitor.yaml
 kubectl apply -f k8s/horizontalpodautoscaler.yaml
 kubectl apply -f k8s/poddisruptionbudget.yaml
@@ -273,7 +269,7 @@ kubectl logs -n auth-service -l app=auth-service --tail=100 -f
 2. **Network Policies**: Ensure network policies are enabled in your cluster
 3. **RBAC**: Implement proper role-based access control
 4. **Image Scanning**: Scan container images for vulnerabilities
-5. **SSL/TLS**: Use proper certificates for ingress
+5. **SSL/TLS**: Use proper certificates for gateway
 6. **JWT Secret**: Use a cryptographically secure random string of at least 32 characters
 
 ## Performance Tuning

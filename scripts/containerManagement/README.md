@@ -20,12 +20,12 @@ Before using these scripts, ensure you have the following tools installed:
 **What it does**:
 
 - Checks prerequisites (Docker, Minikube, kubectl, jq)
-- Starts Minikube and enables ingress addon if needed
+- Starts Minikube if needed
 - Creates namespace if it doesn't exist
 - Loads environment variables from `.env.prod` (if present)
 - Builds Docker image inside Minikube
 - Creates/updates ConfigMap and Secret
-- Deploys all Kubernetes resources (deployment, service, ingress, network policy, pod disruption budget, HPA)
+- Deploys all Kubernetes resources (deployment, service, network policy, pod disruption budget, HPA)
 - Sets up `/etc/hosts` entry for local access
 - Provides access information
 
@@ -69,7 +69,7 @@ Before using these scripts, ensure you have the following tools installed:
 **What it does**:
 
 - Checks prerequisites
-- Shows namespace, deployment, pod, service, and ingress status
+- Shows namespace, deployment, pod, and service status
 - Displays resource usage and recent events
 - Provides access information
 
@@ -207,7 +207,7 @@ Once deployed, the following endpoints are available:
 
 1. **Minikube not starting**: Ensure Docker is running and you have sufficient resources
 2. **Image not found**: Make sure the Docker build completed successfully
-3. **Ingress not working**: Verify the ingress addon is enabled in Minikube
+3. **Gateway not working**: Verify Kong Gateway is properly configured
 4. **Service not accessible**: Check if `/etc/hosts` entry exists and pods are running
 5. **Permission denied**: Ensure scripts are executable (`chmod +x scripts/containerManagement/*.sh`)
 6. **JWT secret validation fails**: Ensure JWT secret is at least 32 characters long

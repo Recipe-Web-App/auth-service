@@ -210,7 +210,6 @@ envsubst < k8s/secret-template.yaml | kubectl apply -f -
 # Deploy all resources
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml
 kubectl apply -f k8s/horizontalpodautoscaler.yaml
 kubectl apply -f k8s/poddisruptionbudget.yaml
 kubectl apply -f k8s/networkpolicy.yaml

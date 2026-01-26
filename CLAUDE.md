@@ -21,6 +21,15 @@ make test-unit      # Run unit tests only
 make test-integration  # Run integration tests with testcontainers
 make test-coverage  # Generate HTML coverage report
 make benchmark      # Run performance benchmarks
+
+# Run a single test
+go test -v -run TestFunctionName ./internal/path/to/package/...
+
+# Run tests in a specific file
+go test -v ./internal/auth/... -run "TestCrypto"
+
+# Run with race detection
+go test -race ./...
 ```
 
 ### Code Quality
@@ -45,8 +54,6 @@ make tools          # Install development tools (air, goimports, gosec)
 ```bash
 make env-setup               # Create .env.local with secure JWT secret
 make build-client-manager    # Build client-manager CLI tool
-make register-clients        # Register clients via shell script
-make register-clients-cli    # Register clients via CLI (batch mode)
 make register-clients-config # Register clients from configs/clients.json
 make get-token CLIENT_ID=<id> CLIENT_SECRET=<secret>  # Get access token for testing
 ```
@@ -60,29 +67,18 @@ docker-compose -f docker-compose.dev.yml up -d  # Development environment
 docker-compose up -d                             # Production environment
 ```
 
-### Kubernetes
-
-```bash
-./scripts/containerManagement/deploy-container.sh     # Complete deployment
-./scripts/containerManagement/get-container-status.sh # Check status
-./scripts/containerManagement/update-container.sh     # Rolling update
-```
-
 ## Architecture Overview
 
-This is an enterprise-grade OAuth2 authentication service built in Go with hybrid storage architecture:
+OAuth2 authentication service built in Go with hybrid storage architecture.
 
 ### Core Components
 
-- **HTTP Layer**: Gorilla Mux router with comprehensive middleware stack
+- **HTTP Layer**: Gorilla Mux router with middleware stack (CORS, rate limiting, logging, security headers)
 - **Business Logic**: OAuth2 service supporting Authorization Code Flow with PKCE and Client Credentials Flow
 - **Storage Layer**:
   - PostgreSQL for persistent user data
   - MySQL for OAuth2 client credentials (primary storage)
   - Redis for sessions/tokens/client cache with graceful degradation
-- **Token Services**: JWT generation/validation and PKCE implementation
-- **User Management**: Database-first strategy with Redis caching for performance
-- **Client Management**: Hybrid MySQL + Redis architecture with bcrypt secret hashing
 
 ### Key Packages
 
@@ -94,12 +90,9 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 - `internal/token/` - JWT and PKCE token services
 - `internal/database/postgres/` - PostgreSQL connection management with health monitoring
 - `internal/database/mysql/` - MySQL connection management for OAuth2 client storage
-- `internal/repository/` - Repository interfaces and implementations:
-  - User data repository (PostgreSQL implementation)
-  - Client repository interface (MySQL primary + Redis cache hybrid implementation)
-  - Hybrid client repository with cache-aside pattern
+- `internal/repository/` - Repository interfaces and implementations (cache-aside pattern)
 - `internal/redis/` - Redis client with fallback memory store
-- `internal/config/` - Environment-based configuration management (includes database config)
+- `internal/config/` - Environment-based configuration management
 - `internal/startup/` - Client auto-registration on service startup
 - `pkg/logger/` - Enhanced logging with dual output support
 
@@ -107,86 +100,39 @@ This is an enterprise-grade OAuth2 authentication service built in Go with hybri
 
 **Hybrid configuration approach** separating connection data from operational settings:
 
-- **Environment variables** (`.env.local`, `.env.prod`) - Connection data and secrets only (see `.env.example`)
-  - Server connection (host, port)
-  - JWT secret (REQUIRED - minimum 32 characters)
-  - Redis connection (URL, password, database)
-  - PostgreSQL connection (optional - host, port, database, credentials)
-  - MySQL connection (optional - host, port, database, credentials)
-  - Auth service client credentials
+- **Environment variables** (`.env.local`) - Connection data and secrets only (see `.env.example`)
   - `ENVIRONMENT` variable determines which YAML config to load (LOCAL, NONPROD, PROD)
+  - JWT_SECRET is REQUIRED (minimum 32 characters)
 - **YAML configuration files** (`configs/*.yaml`) - Operational settings (committed to repository)
-  - `configs/defaults.yaml` - Base configuration for all environments
-  - `configs/local.yaml` - Local development overrides
-  - `configs/nonprod.yaml` - Non-production overrides
-  - `configs/prod.yaml` - Production overrides
+  - `configs/defaults.yaml` - Base configuration loaded first
+  - `configs/local.yaml`, `configs/nonprod.yaml`, `configs/prod.yaml` - Environment-specific overlays
   - Settings: timeouts, pool sizes, JWT expiry, OAuth2 scopes, rate limits, CORS origins, logging
-- **Configuration loading**: `internal/config/yaml_loader.go` loads defaults.yaml then overlays environment-specific YAML
-- `.env.local` file for development (automatically loaded when GO_ENV is not set or is "development")
 - Use `make env-setup` to create `.env.local` with a secure JWT secret
-- Comprehensive validation including JWT secret length (min 32 chars) and port ranges
-- Support for TLS/HTTPS when certificate paths provided in YAML config
-- Client auto-registration via `configs/clients.json` when configured in YAML
 
-### Security Features
+### Health Check Behavior
 
-- PKCE enforcement for Authorization Code Flow
-- Rate limiting per client/IP
-- CORS protection with configurable origins
-- Secure token generation using crypto/rand
-- JWT tokens signed with configurable algorithms (HS256/RS256/etc)
-- Security headers middleware
-- **Client secret hashing with bcrypt** (cost factor 12)
-- **Client secret rotation API** via PUT `/api/v1/auth/oauth/clients/{client_id}/secret`
-- Audit trail tracking (created_by field for all clients)
-
-### Testing Strategy
-
-- Unit tests for individual components
-- Integration tests using testcontainers for Redis
-- Comprehensive coverage reporting
-- Security scanning with gosec
-- Performance benchmarking
-
-### Key Dependencies
-
-- PostgreSQL for persistent user data storage (with pgx driver for connection pooling)
-- **MySQL for OAuth2 client credentials storage** (with go-sql-driver/mysql)
-- Redis for session/token storage and client caching (with in-memory fallback)
-- JWT tokens using golang-jwt/jwt library
-- Gorilla Mux for routing
-- Prometheus metrics integration
-- Structured logging with logrus
-- testcontainers for integration testing
-- **bcrypt for secure client secret hashing** (golang.org/x/crypto/bcrypt)
-
-### Development Notes
-
-- Uses Go 1.24+ with modules
-- Graceful shutdown support with proper database connection cleanup
-- Health checks with degraded status support:
-  - **healthy**: Redis + PostgreSQL + MySQL all available
-  - **degraded**: Redis available, but PostgreSQL or MySQL unavailable (200 status for k8s deployment)
-  - **unhealthy**: Redis unavailable (503 status)
-- Prometheus metrics at `/api/v1/auth/metrics`
-- Sample client automatically created for testing (when `CLIENT_AUTO_REGISTER_CREATE_SAMPLE_CLIENT=true`)
-- **Hybrid client storage architecture:**
-  - MySQL as primary source of truth for OAuth2 clients
-  - Redis cache layer for performance (cache-aside pattern)
-  - Graceful fallback to Redis-only mode if MySQL unavailable
-  - Client secrets hashed with bcrypt before storage (never stored plaintext)
-- Database-first user storage with Redis caching for performance
-- Background database health monitoring with automatic reconnection
-- Service startup independent of database availability (graceful degradation)
-- Docker multi-stage builds for production
-- Kubernetes manifests in `k8s/` directory
-- All API routes prefixed with `/api/v1/auth`
+- **healthy**: Redis + PostgreSQL + MySQL all available
+- **degraded**: Redis available, but PostgreSQL or MySQL unavailable (returns 200 for k8s)
+- **unhealthy**: Redis unavailable (returns 503)
 
 ### OAuth2 Flows Supported
 
-- **Authorization Code Flow with PKCE** - For web/mobile clients (PKCE is required by default)
-- **Client Credentials Flow** - For service-to-service authentication
+- **Authorization Code Flow with PKCE** (RFC 7636) - Required for web/mobile clients
+- **Client Credentials Flow** - Service-to-service authentication
 - **Refresh Token Flow** - Token renewal with rotation support
 - **Token Introspection** (RFC 7662) - Token validation endpoint
 - **Token Revocation** (RFC 7009) - Secure token invalidation
 - **OpenID Connect UserInfo** - User profile endpoint
+
+### API Route Prefix
+
+All API routes are prefixed with `/api/v1/auth`
+
+### Development Notes
+
+- Uses Go 1.24+ with modules
+- Graceful shutdown with proper database connection cleanup
+- Service startup independent of database availability (graceful degradation)
+- Client secrets hashed with bcrypt before storage (never stored plaintext)
+- Prometheus metrics at `/api/v1/auth/metrics`
+- Sample client auto-created when `CLIENT_AUTO_REGISTER_CREATE_SAMPLE_CLIENT=true`

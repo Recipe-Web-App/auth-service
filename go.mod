@@ -2,7 +2,7 @@ module github.com/jsamuelsen11/recipe-web-app/auth-service
 
 go 1.24.0
 
-toolchain go1.24.6
+toolchain go1.25.6
 
 require (
 	github.com/go-redis/redis_rate/v10 v10.0.1

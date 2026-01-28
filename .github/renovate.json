@@ -4,7 +4,7 @@
     "config:recommended",
     ":dependencyDashboard",
     ":semanticCommits",
-    ":rebaseStalePRs",
+    ":rebaseStalePrs",
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "America/New_York",

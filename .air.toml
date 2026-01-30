@@ -1,0 +1,39 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Main entry point
+  cmd = "go build -o ./tmp/main ./cmd/server"
+  bin = "./tmp/main"
+  # Watch these file extensions
+  include_ext = ["go", "yaml", "yml"]
+  # Exclude directories
+  exclude_dir = ["tmp", "vendor", "node_modules", "bin", "test"]
+  # Exclude files
+  exclude_file = ["tools.go"]
+  # Include directories to watch
+  include_dir = ["cmd", "internal", "pkg", "configs"]
+  # Delay before rebuilding (ms)
+  delay = 1000
+  # Stop old binary before running new one
+  stop_on_error = true
+  # Send interrupt signal before killing
+  send_interrupt = true
+  # Delay before sending kill signal (ms)
+  kill_delay = 500
+
+[log]
+  # Show timestamp in log
+  time = false
+  # Only show main log
+  main_only = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Delete tmp directory on exit
+  clean_on_exit = true

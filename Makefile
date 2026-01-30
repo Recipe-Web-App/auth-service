@@ -41,8 +41,7 @@ run: ## Run the application
 
 dev: ## Run the application in development mode with live reload
 	@echo "Running in development mode..."
-	@which air > /dev/null || (echo "Installing air..." && go install github.com/cosmtrek/air@latest)
-	air
+	go tool github.com/air-verse/air
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
@@ -54,7 +53,7 @@ clean: ## Clean build artifacts
 fmt: ## Format Go code
 	@echo "Formatting code..."
 	@go fmt ./...
-	@goimports -w $(GO_FILES) 2>/dev/null || echo "goimports not found, run: go install golang.org/x/tools/cmd/goimports@latest"
+	@go tool golang.org/x/tools/cmd/goimports -w $(GO_FILES)
 
 vet: ## Run go vet
 	@echo "Running go vet..."
@@ -66,7 +65,7 @@ lint: ## Run golangci-lint
 
 security: ## Run security checks
 	@echo "Running security checks..."
-	@gosec ./... || (echo "gosec not found, run: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest")
+	@go tool github.com/securego/gosec/v2/cmd/gosec ./...
 
 test: test-unit ## Run all tests
 
@@ -101,12 +100,14 @@ deps: ## Download and tidy dependencies
 	@go mod download
 	@go mod tidy
 
-tools: ## Install development tools
-	@echo "Installing development tools..."
-	@go install github.com/cosmtrek/air@latest
-	@go install golang.org/x/tools/cmd/goimports@latest
-	@go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-	@echo "Tools installed successfully"
+tools: ## Show info about development tools (managed via go.mod + tools.go)
+	@echo "Development tools are managed via go.mod and tools.go"
+	@echo "They run automatically via 'go tool' (Go 1.24+) - no manual install needed"
+	@echo ""
+	@echo "Tools available:"
+	@echo "  - air (hot reload): used by 'make dev'"
+	@echo "  - goimports: used by 'make fmt'"
+	@echo "  - gosec: used by 'make security'"
 
 check: fmt vet lint security test ## Run all checks (format, vet, lint, security, test)
 

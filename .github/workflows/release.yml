@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -103,7 +103,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
@@ -155,7 +155,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Go
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
@@ -164,7 +164,7 @@ jobs:
           cache: true
 
       - name: Generate SBOM with syft
-        uses: anchore/sbom-action@deef08a0db64bfad603422135db61477b16cef56 # v0
+        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
         with:
           artifact-name: auth-service-sbom.spdx.json
           output-file: auth-service-sbom.spdx.json
@@ -183,7 +183,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -222,7 +222,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate SBOM for Docker image
-        uses: anchore/sbom-action@deef08a0db64bfad603422135db61477b16cef56 # v0
+        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.create-release.outputs.version }}
           artifact-name: docker-sbom.spdx.json
@@ -237,7 +237,7 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@b20883b0cd1f46c72ae0ba6d1090936928f9fa30 # v4
+        uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 # v4
         if: always()
         with:
           sarif_file: "trivy-results.sarif"

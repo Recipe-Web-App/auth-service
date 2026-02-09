@@ -2,7 +2,7 @@ module github.com/jsamuelsen11/recipe-web-app/auth-service
 
 go 1.25
 
-toolchain go1.25.6
+toolchain go1.25.7
 
 tool (
 	github.com/air-verse/air
@@ -11,7 +11,7 @@ tool (
 )
 
 require (
-	github.com/air-verse/air v1.64.4
+	github.com/air-verse/air v1.64.5
 	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/golang-jwt/jwt/v5 v5.3.1

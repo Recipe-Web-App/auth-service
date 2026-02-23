@@ -1,5 +1,5 @@
 # Multi-stage build for Go auth-service production optimization
-FROM golang:1.25-alpine AS base
+FROM golang:1.26-alpine AS base
 
 # Install build dependencies without pinned versions
 # Alpine 3.22 packages are updated frequently

@@ -76,7 +76,7 @@ jobs:
           go-licenses csv ./... 2>/dev/null | awk -F',' '{print $2}' | sort | uniq -c | sort -rn >> license-summary.md || true
 
       - name: Upload license report
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: license-report
           path: |
